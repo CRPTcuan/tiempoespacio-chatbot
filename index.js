@@ -29,7 +29,7 @@ Servicios principales que ofreces:
    - Aplicaciones web
    - Optimización SEO
    - Diseño responsive
-   - Si el cliente esta interesado en Diseño Web el primer año de hosting es gratis
+   - Si el cliente está interesado en Diseño Web el primer año de hosting es gratis
 
 2. Desarrollo Backend
    - APIs y servicios web
@@ -45,11 +45,11 @@ Servicios principales que ofreces:
 
 4. Desarrollo de Robots
    - Automatización
-   - Chatbots como el de esta pagina
+   - Chatbots como el de esta página
    - Integración con IA
    - Soluciones robóticas
 
-5. Planes de Hosting - Todos los planes incluyen: transerencia ilimitada, correos ilimitados, solo se controla es espacio utilizado
+5. Planes de Hosting - Todos los planes incluyen: transferencia ilimitada, correos ilimitados, solo se controla el espacio utilizado
    - Plan de 1 Gb $ 20.000
    - Plan de 2 Gb $ 30.000
    - Plan de 3 Gb $ 40.000
@@ -68,8 +68,9 @@ Reglas de conversación:
 
 3. Si el usuario muestra interés real en algún servicio:
    - Pregunta si quiere más detalles
-   - Si confirma, comparte el número de WhatsApp: +56947929330
+   - Si confirma, comparte el correo de contacto: soporte@tiempoespacio.cl
    - Indica que pueden agendar una llamada para más información
+   - Proporciona el número de WhatsApp: [+569 1234 5678](https://wa.me/56912345678)
 
 4. No des información técnica muy específica, mejor invita a una conversación más detallada
 
@@ -79,44 +80,47 @@ Reglas de conversación:
 
 7. Si el usuario menciona un proyecto específico, pide más detalles para poder asesorar mejor
 
+8. Siempre incluye enlaces clickables para:
+   - WhatsApp: [+569 1234 5678](https://wa.me/56912345678)
+   - Correo: [soporte@tiempoespacio.cl](mailto:soporte@tiempoespacio.cl)
+
 Recuerda: Tu objetivo es ser amigable y cercano, pero siempre manteniendo el foco en los servicios de Tiempoespacio y guiando la conversación hacia una consulta más formal cuando haya interés real.
 
-de vez en cuando puedes contar un chiste corto
-
-Cuando entregues un número de WhatsApp, asegúrate de proporcionarlo con un hipervínculo clickable que abra una conversación directamente en WhatsApp.
-
-[Hablar por WhatsApp](https://wa.me/+56947929330)`;
+De vez en cuando puedes contar un chiste corto relacionado con tecnología o desarrollo web.`;
 
 const initialAssistantMessage = '¡Wena! 👋 Soy Guille, el asistente de Tiempoespacio.cl. ¿Cómo te puedo ayudar hoy?';
 
 app.post('/chat', async (req, res) => {
-  const { message, sessionId } = req.body;
-
-  if (!sessionId || !message) {
-    return res.status(400).json({ error: 'sessionId and message are required' });
-  }
-
-  if (!conversations[sessionId]) {
-    conversations[sessionId] = [
-      { role: 'system', content: systemPrompt },
-      { role: 'assistant', content: initialAssistantMessage }
-    ];
-  }
-
-  conversations[sessionId].push({ role: 'user', content: message });
-
-  const messagesToSend = conversations[sessionId].slice(-10);
-
   try {
+    const { message, sessionId } = req.body;
+
+    if (!sessionId || !message) {
+      return res.status(400).json({ error: 'Se requiere sessionId y mensaje' });
+    }
+
+    if (!conversations[sessionId]) {
+      conversations[sessionId] = [
+        { role: 'system', content: systemPrompt },
+        { role: 'assistant', content: initialAssistantMessage }
+      ];
+    }
+
+    conversations[sessionId].push({ role: 'user', content: message });
+
+    // Limitar el historial de conversación a los últimos 10 mensajes
+    const messagesToSend = conversations[sessionId].slice(-10);
+
     const response = await axios.post(GROQ_API_URL, {
       model: 'llama3-8b-8192',
       messages: messagesToSend,
-      temperature: 0.7
+      temperature: 0.7,
+      max_tokens: 1000
     }, {
       headers: {
         'Authorization': `Bearer ${GROQ_API_KEY}`,
         'Content-Type': 'application/json'
-      }
+      },
+      timeout: 30000 // 30 segundos de timeout
     });
 
     const reply = response.data.choices[0].message.content;
@@ -125,8 +129,17 @@ app.post('/chat', async (req, res) => {
 
     res.json({ reply });
   } catch (error) {
-    console.error('Error calling Groq API:', error);
-    res.status(500).json({ error: 'Failed to get response from AI' });
+    console.error('Error en la API de Groq:', error.response?.data || error.message);
+    
+    let errorMessage = 'Lo siento, hubo un error al procesar tu mensaje. ¿Podrías intentarlo de nuevo?';
+    
+    if (error.response?.status === 429) {
+      errorMessage = 'Estamos recibiendo muchas solicitudes. Por favor, intenta de nuevo en unos minutos.';
+    } else if (error.code === 'ECONNABORTED') {
+      errorMessage = 'La solicitud tardó demasiado tiempo. Por favor, intenta de nuevo.';
+    }
+    
+    res.status(500).json({ error: errorMessage });
   }
 });
 
