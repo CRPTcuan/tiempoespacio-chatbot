@@ -11,8 +11,21 @@ if (!supabaseUrl || !supabaseKey) {
   console.error('Asegúrate de que estas variables estén configuradas en tu archivo .env o en tu proveedor de hosting');
 }
 
-// Crear cliente
-const supabase = createClient(supabaseUrl, supabaseKey);
+// Crear cliente con opciones específicas para garantizar compatibilidad con Render
+const supabase = createClient(supabaseUrl, supabaseKey, {
+  db: {
+    schema: 'public'
+  },
+  auth: {
+    persistSession: false
+  },
+  global: {
+    // Estas opciones ayudan a resolver problemas de conexión en entornos como Render
+    fetch: (...args) => fetch(...args)
+  }
+});
+
+console.log('Inicializando cliente de Supabase con URL:', supabaseUrl);
 
 /**
  * Consulta los horarios disponibles para una fecha específica
@@ -21,11 +34,17 @@ const supabase = createClient(supabaseUrl, supabaseKey);
  */
 async function consultarDisponibilidad(fecha) {
   try {
+    console.log(`Consultando disponibilidad para fecha: ${fecha.toISOString().split('T')[0]}`);
     const { data, error } = await supabase.rpc('consultar_disponibilidad_fecha', {
       p_fecha: fecha.toISOString().split('T')[0]
     });
     
-    if (error) throw error;
+    if (error) {
+      console.error('Error al consultar disponibilidad (detalle):', error);
+      throw error;
+    }
+    
+    console.log(`Disponibilidad encontrada: ${data ? data.length : 0} horarios`);
     
     // Filtrar solo horarios disponibles
     return data.filter(h => h.disponible).map(h => ({
@@ -34,7 +53,7 @@ async function consultarDisponibilidad(fecha) {
       disponible: h.disponible
     }));
   } catch (error) {
-    console.error('Error al consultar disponibilidad:', error);
+    console.error('Error al consultar disponibilidad:', error.message);
     return [];
   }
 }
@@ -46,6 +65,7 @@ async function consultarDisponibilidad(fecha) {
  */
 async function crearReserva(reserva) {
   try {
+    console.log('Intentando crear reserva con datos:', JSON.stringify(reserva, null, 2));
     const { 
       fecha, 
       hora, 
@@ -68,7 +88,12 @@ async function crearReserva(reserva) {
       p_programa: programa || null // Asegurar que programa sea opcional
     });
     
-    if (error) throw error;
+    if (error) {
+      console.error('Error al crear reserva (detalle):', error);
+      throw error;
+    }
+    
+    console.log('Reserva creada exitosamente con ID:', data);
     
     return {
       exito: true,
@@ -76,7 +101,7 @@ async function crearReserva(reserva) {
       mensaje: 'Reserva creada exitosamente'
     };
   } catch (error) {
-    console.error('Error al crear reserva:', error);
+    console.error('Error al crear reserva:', error.message);
     return {
       exito: false,
       id: null,
@@ -91,6 +116,7 @@ async function crearReserva(reserva) {
  */
 async function obtenerProximasFechasDisponibles() {
   try {
+    console.log('Consultando próximas fechas disponibles...');
     const fechas = [];
     const hoy = new Date();
     
@@ -112,9 +138,10 @@ async function obtenerProximasFechasDisponibles() {
       }
     }
     
+    console.log(`Encontradas ${fechas.length} fechas disponibles`);
     return fechas;
   } catch (error) {
-    console.error('Error al obtener fechas disponibles:', error);
+    console.error('Error al obtener fechas disponibles:', error.message);
     return [];
   }
 }
