@@ -513,7 +513,7 @@ const procesarIntencionReserva = async (mensaje, sessionId) => {
             `3️⃣ Número de teléfono: ${reservationStates[sessionId].telefono}`
         };
       } else {
-        let mensajeFaltante = "Para completar la reserva, necesitamos algunos datos más. Por favor, indícame:\n\n1️⃣ Tu nombre completo\n2️⃣ Tu correo electrónico\n3️⃣ Tu número de teléfono\n\nSi ya tienes estos datos, por favor, confírmalos. Si no, por favor, proporcionármelos para que podamos continuar con tu reserva.`;
+        let mensajeFaltante = "Para completar la reserva, necesitamos algunos datos más. Por favor, indícame:\n\n1️⃣ Tu nombre completo\n2️⃣ Tu correo electrónico\n3️⃣ Tu número de teléfono\n\nSi ya tienes estos datos, por favor, confírmalos. Si no, por favor, proporcionármelos para que podamos continuar con tu reserva.";
         
         return {
           mensajePersonalizado: mensajeFaltante
@@ -535,7 +535,7 @@ const procesarIntencionReserva = async (mensaje, sessionId) => {
           mensajePersonalizado: `¡Gracias por confirmar tu reserva! Te esperamos el ${fechaFormateada} a las ${reservationStates[sessionId].hora} en nuestras Cápsulas QuantumVibe. ¡Te esperamos con mucho entusiasmo!`;
         };
       } else {
-        let mensajeFaltante = "Por favor, confirma tu reserva para continuar. ¿Estás seguro de que quieres reservar una sesión en Cápsulas QuantumVibe el ${reservationStates[sessionId].fecha} a las ${reservationStates[sessionId].hora}?";
+        let mensajeFaltante = `Por favor, confirma tu reserva para continuar. ¿Estás seguro de que quieres reservar una sesión en Cápsulas QuantumVibe el ${fechaFormateada} a las ${reservationStates[sessionId].hora}?`;
         
         return {
           mensajePersonalizado: mensajeFaltante
