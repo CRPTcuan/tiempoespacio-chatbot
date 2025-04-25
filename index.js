@@ -6,8 +6,13 @@ const path = require('path');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Importar cliente de Supabase
-const supabaseClient = require('./scripts/supabase-client-simple');
+// Importar nuestro gestor de reservas local
+const reservasManager = require('./scripts/reservas-manager');
+
+// Inicializar el sistema de reservas
+(async function() {
+  await reservasManager.inicializarSistema();
+})();
 
 app.use(express.json());
 app.use(cors());
@@ -186,11 +191,11 @@ Los usuarios pueden experimentar estados meditativos profundos, alivio del dolor
 
 const initialAssistantMessage = '¡Saludos! Soy tu guía en Cápsulas QuantumVibe. 🌟 Te puedo contar sobre nuestra experiencia transformadora que combina sonido, frecuencias y vibraciones. ¿Qué te gustaría conocer primero: cómo funciona la experiencia, los beneficios que ofrece, o los distintos programas disponibles?';
 
-// Rutas API para Supabase
+// Rutas API para el sistema de reservas
 app.get('/api/disponibilidad', async (req, res) => {
   try {
     const fecha = req.query.fecha ? new Date(req.query.fecha) : new Date();
-    const disponibilidad = await supabaseClient.consultarDisponibilidad(fecha);
+    const disponibilidad = await reservasManager.consultarDisponibilidad(fecha);
     res.json(disponibilidad);
   } catch (error) {
     console.error('Error al consultar disponibilidad:', error);
@@ -200,7 +205,7 @@ app.get('/api/disponibilidad', async (req, res) => {
 
 app.get('/api/fechas-disponibles', async (req, res) => {
   try {
-    const fechas = await supabaseClient.obtenerProximasFechasDisponibles();
+    const fechas = await reservasManager.obtenerProximasFechasDisponibles();
     res.json(fechas);
   } catch (error) {
     console.error('Error al obtener fechas disponibles:', error);
@@ -210,7 +215,7 @@ app.get('/api/fechas-disponibles', async (req, res) => {
 
 app.post('/api/reserva', async (req, res) => {
   try {
-    const resultado = await supabaseClient.crearReserva(req.body);
+    const resultado = await reservasManager.crearReserva(req.body);
     res.json(resultado);
   } catch (error) {
     console.error('Error al crear reserva:', error);
@@ -244,7 +249,7 @@ const procesarIntencionReserva = async (mensaje, sessionId) => {
       };
       
       // Obtener fechas disponibles para los próximos días
-      const fechasDisponibles = await supabaseClient.obtenerProximasFechasDisponibles();
+      const fechasDisponibles = await reservasManager.obtenerProximasFechasDisponibles();
       
       if (fechasDisponibles.length === 0) {
         return {
@@ -256,7 +261,7 @@ const procesarIntencionReserva = async (mensaje, sessionId) => {
       let mensajeFechas = "Tenemos disponibilidad en los siguientes días:\n\n";
       
       fechasDisponibles.slice(0, 7).forEach(fechaInfo => {
-        const fechaFormateada = supabaseClient.formatearFecha(fechaInfo.fecha);
+        const fechaFormateada = reservasManager.formatearFecha(fechaInfo.fecha);
         mensajeFechas += `📅 ${fechaFormateada}:\n`;
         
         // Formatear horarios disponibles
@@ -439,7 +444,7 @@ const procesarIntencionReserva = async (mensaje, sessionId) => {
       if (/\b(s[iíÍ]|yes|confirmo|correcto|adelante)\b/i.test(mensaje)) {
         // Crear la reserva en el sistema
         try {
-          const resultado = await supabaseClient.crearReserva({
+          const resultado = await reservasManager.crearReserva({
             fecha: reservationStates[sessionId].fecha,
             hora: reservationStates[sessionId].hora,
             nombre_cliente: reservationStates[sessionId].nombre,

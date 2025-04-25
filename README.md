@@ -1,109 +1,79 @@
-# QuantumVibe - Chatbot de Reservas
+# Sistema de Chatbot con Reservas para Cápsulas QuantumVibe
 
-Sistema de chatbot para gestionar reservas de las Cápsulas QuantumVibe, un espacio innovador que ofrece sesiones terapéuticas donde las personas experimentan sonido, frecuencia, vibración y luz para transformar su energía.
+Este proyecto implementa un chatbot para Cápsulas QuantumVibe que permite a los usuarios realizar reservas para sesiones terapéuticas mediante una conversación natural.
 
-## Características
+## Características principales
 
-- 💬 Chatbot interactivo para información y reservas
-- 📅 Sistema de gestión de disponibilidad y reservas
-- 🛎️ Programas específicos: Descanso Profundo, Concentración y Foco, Creatividad
-- ⏰ Horarios disponibles: 10:00, 12:00, 15:00 y 17:00 (martes a sábado)
-- 🔒 Seguridad con validación de clientes y lista de restricciones
+- Chatbot interactivo impulsado por la API de Groq (Llama 3)
+- Sistema de reservas simple basado en archivos JSON
+- Gestión de disponibilidad de horarios (4 horas diarias)
+- Días disponibles: martes a sábado
+- Interfaz de chat amigable
 
-## Arquitectura
+## Cómo funciona el sistema de reservas
 
-El sistema utiliza:
-- **Frontend**: HTML/CSS/JavaScript para la interfaz de chat
-- **Backend**: Node.js con Express
-- **Base de datos**: Supabase (PostgreSQL)
-- **Modelo de lenguaje**: Groq (API compatible con OpenAI)
+El sistema almacena las reservas en un archivo JSON local (`data/reservas.json`), lo cual elimina la necesidad de una base de datos externa como Supabase. Esto hace que la implementación sea:
 
-## Despliegue en Render
+1. Más simple y autónoma
+2. Sin problemas de conectividad IPv4/IPv6
+3. Fácil de mantener sin dependencias externas
 
-Para desplegar este proyecto en Render.com:
+### Estructura de datos
 
-1. **Preparación**:
-   - Haz un fork o clona este repositorio en GitHub
-   - Crea una cuenta en [Supabase](https://supabase.com) si aún no tienes una
-   - Crea una cuenta en [Render](https://render.com) si aún no tienes una
-   - Obtén una API key de [Groq](https://groq.ai) para el modelo de lenguaje
+Las reservas se almacenan en el siguiente formato:
 
-2. **Configuración inicial en Render**:
-   - Crea un nuevo Web Service vinculado a tu repositorio de GitHub
-   - Configura tu proyecto con:
-     - **Runtime**: Node.js
-     - **Build Command**: `npm install`
-     - **Start Command**: `npm run setup-simple` (temporalmente)
-     - **Environment Variables**: Todas las listadas en el archivo `.env.example`
+```json
+{
+  "reservas": [
+    {
+      "id": "1672545138745-123",
+      "fecha": "2023-06-15",
+      "hora": "10:00",
+      "nombre_cliente": "Juan Pérez",
+      "telefono": "+56912345678",
+      "email": "juan@ejemplo.com",
+      "creada_en": "2023-06-10T15:30:45.123Z"
+    }
+  ]
+}
+```
 
-3. **Configuración de Supabase**:
-   - Una vez desplegado el servicio, accede a la URL proporcionada por Render
-   - Sigue las instrucciones en pantalla para configurar automáticamente la base de datos
-   - Verifica que la configuración se haya completado correctamente
-   - Si encuentras algún error, consulta el archivo `DEPLOY_RENDER.md`
+### Flujo de reserva
 
-4. **Finalización**:
-   - Regresa al panel de Render
-   - Cambia el comando de inicio a: `npm start`
-   - Despliega nuevamente la aplicación
+1. **Detección de intención**: El chatbot detecta cuando un usuario quiere hacer una reserva.
+2. **Mostrar disponibilidad**: Se muestran los días y horarios disponibles.
+3. **Selección de fecha y hora**: El usuario elige cuándo quiere su sesión.
+4. **Datos personales**: El chatbot pide nombre y teléfono.
+5. **Confirmación**: Se confirman los datos y se crea la reserva.
+6. **Finalización**: Se muestra la dirección y detalles finales.
 
-Para instrucciones detalladas, consulta el archivo `DEPLOY_RENDER.md` en este repositorio.
+## Configuración
 
-## Variables de Entorno
-
-Todas las variables de entorno están centralizadas en el archivo `.env` para desarrollo local y en las variables de entorno de tu proveedor de hosting para producción. Consulta el archivo `.env.example` para ver todas las variables requeridas y opcionales.
-
-### Variables Obligatorias
-
-| Variable | Descripción |
-|----------|-------------|
-| `SUPABASE_URL` | URL de tu proyecto Supabase (ej: https://tu-proyecto.supabase.co) |
-| `SUPABASE_KEY` | Service Role Key de Supabase (no la anon/public) |
-| `GROQ_API_KEY` | API Key de Groq para el modelo de lenguaje |
-
-### Variables Opcionales
-
-| Variable | Descripción | Valor por defecto |
-|----------|-------------|-------------------|
-| `PORT` | Puerto para el servidor | 3000 |
-| `KEEP_ALIVE_URL` | URL para el script keep-alive | http://localhost:[PORT]/keep-alive |
-| `KEEP_ALIVE_INTERVAL` | Intervalo para el keep-alive (ms) | 300000 (5 minutos) |
-
-## Desarrollo Local
-
-Para desarrollo local:
-
-1. Clona el repositorio
+1. Configura tu API key de Groq en el archivo `.env`:
    ```
-   git clone https://github.com/tu-usuario/5D-chatbot.git
-   cd 5D-chatbot
+   GROQ_API_KEY=tu_api_key_aquí
    ```
 
-2. Instala las dependencias
+2. Instala las dependencias:
    ```
    npm install
    ```
 
-3. Crea un archivo `.env` basado en `.env.example` con tus propias variables
-
-4. Inicia el servidor en modo desarrollo
+3. Inicia el servidor:
    ```
-   npm run dev
+   npm start
    ```
 
-## Mantenimiento
+## Estructura de archivos
 
-Para mantener el sistema:
+- `index.js`: Archivo principal de la aplicación.
+- `scripts/reservas-manager.js`: Módulo de gestión de reservas.
+- `public/`: Archivos estáticos y frontend.
+- `data/reservas.json`: Almacenamiento de reservas (se crea automáticamente).
 
-1. **Actualizaciones**: Push a GitHub y Render desplegará automáticamente
-2. **Monitoreo**: Usa la sección "Logs" en Render para supervisar actividad y errores
-3. **Reservas**: Puedes acceder a las reservas directamente desde Supabase
+## Posibles mejoras futuras
 
-## Estructura del Proyecto
-
-- `/public` - Archivos estáticos públicos
-- `/scripts` - Scripts para configuración y utilidades
-- `index.js` - Punto de entrada principal
-- `DEPLOY_RENDER.md` - Guía detallada de despliegue
-- `VARIABLES_ENTORNO.md` - Documentación de las variables de entorno
-- `.env.example` - Ejemplo de configuración de variables de entorno 
+1. Añadir interfaz de administración para ver y gestionar reservas.
+2. Implementar notificaciones por email o SMS.
+3. Mejorar el análisis de texto para extraer fechas y horas complejas.
+4. Añadir una opción para cancelar reservas existentes. 
