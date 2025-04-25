@@ -40,4 +40,4 @@ coverage/
 # Misc
 *.pem
 .vercel
-.cache 
+.cache public/QuantumVibe.mp4
