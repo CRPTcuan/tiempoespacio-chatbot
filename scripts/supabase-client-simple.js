@@ -5,6 +5,12 @@ const { createClient } = require('@supabase/supabase-js');
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseKey = process.env.SUPABASE_KEY;
 
+// Verificar que las variables de entorno estén configuradas
+if (!supabaseUrl || !supabaseKey) {
+  console.error('ERROR: Variables de entorno SUPABASE_URL y/o SUPABASE_KEY no configuradas');
+  console.error('Asegúrate de que estas variables estén configuradas en tu archivo .env o en tu proveedor de hosting');
+}
+
 // Crear cliente
 const supabase = createClient(supabaseUrl, supabaseKey);
 
@@ -34,36 +40,7 @@ async function consultarDisponibilidad(fecha) {
 }
 
 /**
- * Verifica si un cliente está en la lista negra
- * @param {string} telefono - Número de teléfono del cliente
- * @param {string} email - Email del cliente
- * @returns {Object} - Resultado de la verificación { enBlacklist, motivo }
- */
-async function verificarCliente(telefono, email) {
-  try {
-    const { data, error } = await supabase.rpc('verificar_disponibilidad', {
-      p_dia_semana: 2, // Valor dummy, solo nos interesa la blacklist
-      p_hora: '10:00:00',
-      p_fecha: new Date().toISOString().split('T')[0],
-      p_telefono: telefono,
-      p_email: email
-    });
-    
-    if (error) throw error;
-    
-    const resultado = data[0] || { disponible: true, motivo: null };
-    return {
-      enBlacklist: !resultado.disponible && resultado.motivo !== 'Horario no disponible' && resultado.motivo !== 'Ya existe una reserva para esta fecha y hora',
-      motivo: resultado.motivo
-    };
-  } catch (error) {
-    console.error('Error al verificar cliente:', error);
-    return { enBlacklist: false, motivo: null };
-  }
-}
-
-/**
- * Crea una nueva reserva
+ * Crea una nueva reserva simplificada (sin programa)
  * @param {Object} reserva - Datos de la reserva
  * @returns {Object} - Resultado de la creación { exito, id, mensaje }
  */
@@ -74,8 +51,8 @@ async function crearReserva(reserva) {
       hora, 
       nombre_cliente, 
       telefono, 
-      email, 
-      programa 
+      email,
+      programa
     } = reserva;
     
     const fechaObj = new Date(fecha);
@@ -88,7 +65,7 @@ async function crearReserva(reserva) {
       p_nombre_cliente: nombre_cliente,
       p_telefono: telefono,
       p_email: email,
-      p_programa: programa
+      p_programa: programa || null // Asegurar que programa sea opcional
     });
     
     if (error) throw error;
@@ -169,7 +146,6 @@ function formatearFecha(fecha) {
 
 module.exports = {
   consultarDisponibilidad,
-  verificarCliente,
   crearReserva,
   obtenerProximasFechasDisponibles,
   diaSemanaATexto,

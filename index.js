@@ -7,27 +7,58 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 // Importar cliente de Supabase
-const supabaseClient = require('./scripts/supabase-client');
+const supabaseClient = require('./scripts/supabase-client-simple');
 
 app.use(express.json());
 app.use(cors());
 app.use(express.static(path.join(__dirname, 'public')));
 
-// Objeto para almacenar las sesiones de chat
+// Objeto para almacenar las sesiones de chat temporalmente en memoria
 const conversations = {};
 
 // Objeto para almacenar estados de reserva en proceso
 const reservationStates = {};
 
+// Configuración de la API de GROQ
 const GROQ_API_URL = 'https://api.groq.com/openai/v1/chat/completions';
 const GROQ_API_KEY = process.env.GROQ_API_KEY;
 
 // Verificar si la API key está configurada
 if (!GROQ_API_KEY) {
   console.error('ERROR: La variable de entorno GROQ_API_KEY no está configurada.');
-  console.error('Por favor, configura esta variable en tu archivo .env o en el panel de Render.com');
+  console.error('Por favor, configura esta variable en tu archivo .env o en el panel de tu proveedor de hosting');
 }
 
+// Configuración keep-alive (opcional)
+const KEEP_ALIVE_URL = process.env.KEEP_ALIVE_URL || `http://localhost:${PORT}/keep-alive`;
+const KEEP_ALIVE_INTERVAL = parseInt(process.env.KEEP_ALIVE_INTERVAL || '300000', 10); // 5 minutos por defecto
+
+// Función para mantener viva la aplicación (opcional)
+function setupKeepAlive() {
+  if (process.env.KEEP_ALIVE_URL) {
+    console.log(`Configurando keep-alive cada ${KEEP_ALIVE_INTERVAL / 60000} minutos a ${KEEP_ALIVE_URL}`);
+    
+    async function pingKeepAlive() {
+      try {
+        const response = await axios.get(KEEP_ALIVE_URL);
+        console.log(`[${new Date().toISOString()}] Keep-alive ping exitoso`);
+      } catch (error) {
+        console.error(`[${new Date().toISOString()}] Error en keep-alive ping:`, error.message);
+      }
+    }
+    
+    // Ejecutar el ping inmediatamente y luego cada intervalo
+    pingKeepAlive();
+    setInterval(pingKeepAlive, KEEP_ALIVE_INTERVAL);
+  }
+}
+
+// Activar keep-alive si estamos en producción
+if (process.env.NODE_ENV === 'production') {
+  setupKeepAlive();
+}
+
+// System prompt para el asistente
 const systemPrompt = `Eres el asistente virtual de Cápsulas QuantumVibe. Tu rol es promocionar las cápsulas, un proyecto innovador que ofrece sesiones terapéuticas en cápsulas físicas donde las personas experimentan sonido, frecuencia, vibración y luz para transformar y transmutar su energía, logrando una ascensión a la 5D en un mundo de cambios geopolíticos, sociales y espirituales. Tu personalidad es:
 
 - Amigable, cercano y profesional
@@ -193,17 +224,18 @@ const procesarIntencionReserva = async (mensaje, sessionId) => {
   const patrones = [
     /\b(reservar|reserva|agendar|agenda|tomar|sacar)\b.*\b(hora|sesion|cita)\b/i,
     /\b(quiero|me.gustaría|puedo)\b.*\b(reservar|agendar|tomar)\b/i,
-    /\bcomo\b.*\b(tomo|reservo|agendo)\b/i
+    /\bcomo\b.*\b(tomo|reservo|agendo)\b/i,
+    /\b(disponibilidad|horarios|horas)\b/i
   ];
   
   const esIntencionReserva = patrones.some(patron => patron.test(mensaje));
   
-  if (esIntencionReserva) {
+  // Si el usuario tiene un estado de reserva en proceso, continuamos procesando independientemente del mensaje
+  if (esIntencionReserva || reservationStates[sessionId]) {
     // Iniciar proceso de reserva si no existe
     if (!reservationStates[sessionId]) {
       reservationStates[sessionId] = {
         paso: 'inicio',
-        programa: null,
         fecha: null,
         hora: null,
         nombre: null,
@@ -220,18 +252,245 @@ const procesarIntencionReserva = async (mensaje, sessionId) => {
         };
       }
       
-      // Formatear fechas disponibles para mostrar
-      const fechasFormateadas = fechasDisponibles.slice(0, 5).map(f => {
-        return `- ${supabaseClient.formatearFecha(f.fecha)} a las ${f.horarios.map(h => h.hora.substring(0, 5)).join(', ')}`;
-      }).join('\n');
+      // Formatear fechas disponibles para mostrar de manera más clara
+      let mensajeFechas = "Tenemos disponibilidad en los siguientes días:\n\n";
+      
+      fechasDisponibles.slice(0, 7).forEach(fechaInfo => {
+        const fechaFormateada = supabaseClient.formatearFecha(fechaInfo.fecha);
+        mensajeFechas += `📅 ${fechaFormateada}:\n`;
+        
+        // Formatear horarios disponibles
+        fechaInfo.horarios.forEach(h => {
+          const horaFormateada = h.hora.substring(0, 5);
+          mensajeFechas += `   ⏰ ${horaFormateada}\n`;
+        });
+        
+        mensajeFechas += "\n";
+      });
+      
+      mensajeFechas += "Para reservar, necesito que me indiques:\n\n";
+      mensajeFechas += "1️⃣ Fecha deseada (ejemplo: 'el jueves 20')\n";
+      mensajeFechas += "2️⃣ Hora (ejemplo: '10:00')\n";
+      mensajeFechas += "3️⃣ Tu nombre completo\n";
+      mensajeFechas += "4️⃣ Número de teléfono\n";
       
       return {
-        mensajePersonalizado: `¡Excelente elección! Puedes programar tu hora en Cápsulas QuantumVibe de varias maneras: **Reserva en línea** Puedes reservar tu hora en nuestro sitio web, en la sección "Reserva". Simplemente selecciona el día y la hora que prefieres, y proporciona tus datos personales. **Llamada o WhatsApp** Puedes llamar o enviar un WhatsApp a nuestro número de contacto (94 1234 5678) y pedir una hora disponible. Nuestro equipo estará encantado de asistirte. **Correos electrónicos** Puedes enviar un correo electrónico a info@quantumvibe.com con el título "Reserva de hora" y proporciona tus datos personales y la hora que prefieres. **Presencialmente** Puedes visitarnos en persona en nuestra ubicación en Metro Baquedano, Providencia, Chile, y pedir una hora disponible en nuestro mostrador. Nuestro equipo estará encantado de asistirte. Recuerda que es importante tener en cuenta que las horas de sesión pueden variar dependiendo de la demanda y la disponibilidad. ¡Esperamos verte pronto!`
+        mensajePersonalizado: mensajeFechas
       };
+    } else if (reservationStates[sessionId].paso === 'inicio') {
+      // Procesar la respuesta del usuario según el paso del proceso de reserva
+      
+      // Ejemplo básico para detectar fecha y hora en el mensaje
+      const fechaPatterns = [
+        /\b(lunes|martes|miercoles|miércoles|jueves|viernes|sabado|sábado)\b/i,
+        /\b(\d{1,2})\s+de\s+(enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|octubre|noviembre|diciembre)\b/i
+      ];
+      
+      const horaPatterns = [
+        /\b(10|12|15|17):?00\b/i,
+        /\b(10|12|3|5)\s*(am|pm)\b/i
+      ];
+      
+      // Identificar partes del mensaje
+      const tieneFecha = fechaPatterns.some(p => p.test(mensaje));
+      const tieneHora = horaPatterns.some(p => p.test(mensaje));
+      
+      // Extraer fecha aproximada (simplificado)
+      if (tieneFecha) {
+        // Detectar día de la semana mencionado
+        const diasSemana = ['domingo', 'lunes', 'martes', 'miércoles', 'miercoles', 'jueves', 'viernes', 'sábado', 'sabado'];
+        let diaMencionado = null;
+        
+        for (const dia of diasSemana) {
+          if (mensaje.toLowerCase().includes(dia)) {
+            diaMencionado = dia.replace('miercoles', 'miércoles').replace('sabado', 'sábado');
+            break;
+          }
+        }
+        
+        if (diaMencionado) {
+          // Calcular próxima fecha con ese día de la semana
+          const diaNumerico = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'].indexOf(diaMencionado);
+          if (diaNumerico !== -1) {
+            const hoy = new Date();
+            const diasParaSumar = (diaNumerico + 7 - hoy.getDay()) % 7;
+            const fechaProxima = new Date(hoy);
+            fechaProxima.setDate(hoy.getDate() + (diasParaSumar === 0 ? 7 : diasParaSumar));
+            
+            reservationStates[sessionId].fecha = fechaProxima.toISOString().split('T')[0];
+          }
+        }
+      }
+      
+      // Extraer hora (simplificado)
+      if (tieneHora) {
+        // Buscar menciones de hora específicas
+        const horasPermitidas = ['10:00', '12:00', '15:00', '17:00'];
+        let horaMencionada = null;
+        
+        for (const hora of horasPermitidas) {
+          if (mensaje.includes(hora)) {
+            horaMencionada = hora;
+            break;
+          }
+        }
+        
+        // También buscar formatos alternativos (3pm = 15:00)
+        if (!horaMencionada) {
+          if (mensaje.match(/\b3\s*pm\b/i)) horaMencionada = '15:00';
+          if (mensaje.match(/\b5\s*pm\b/i)) horaMencionada = '17:00';
+          if (mensaje.match(/\b10\s*am\b/i)) horaMencionada = '10:00';
+          if (mensaje.match(/\b12\s*pm\b/i)) horaMencionada = '12:00';
+        }
+        
+        if (horaMencionada) {
+          reservationStates[sessionId].hora = horaMencionada;
+        }
+      }
+      
+      // Si tenemos suficiente información
+      if (reservationStates[sessionId].fecha && 
+          reservationStates[sessionId].hora) {
+        reservationStates[sessionId].paso = 'datos_personales';
+        
+        const fechaFormateada = new Date(reservationStates[sessionId].fecha)
+          .toLocaleDateString('es-ES', { 
+            weekday: 'long', 
+            year: 'numeric', 
+            month: 'long', 
+            day: 'numeric' 
+          });
+        
+        return {
+          mensajePersonalizado: `¡Excelente elección! Has seleccionado una sesión para el ${fechaFormateada} a las ${reservationStates[sessionId].hora}.\n\nAhora necesito tus datos personales. Por favor, indícame tu nombre completo y número de teléfono.`
+        };
+      } else {
+        let mensajeFaltante = "Para continuar con la reserva, necesito ";
+        
+        if (!reservationStates[sessionId].fecha) mensajeFaltante += "la fecha que prefieres, ";
+        if (!reservationStates[sessionId].hora) mensajeFaltante += "la hora que te gustaría, ";
+        
+        mensajeFaltante = mensajeFaltante.slice(0, -2) + ".";
+        
+        return {
+          mensajePersonalizado: mensajeFaltante
+        };
+      }
+    } else if (reservationStates[sessionId].paso === 'datos_personales') {
+      // Extraer posible nombre y teléfono
+      
+      // Patrón simple para detectar nombres (2+ palabras)
+      const nombrePattern = /\b([A-Za-zÀ-ÖØ-öø-ÿ]+(?:\s+[A-Za-zÀ-ÖØ-öø-ÿ]+)+)\b/;
+      const nombreMatch = mensaje.match(nombrePattern);
+      
+      // Patrón para teléfonos chilenos (+569XXXXXXXX o 9XXXXXXXX)
+      const telefonoPattern = /(?:\+?56\s?9|9)\s?\d{4}\s?\d{4}/;
+      const telefonoMatch = mensaje.match(telefonoPattern);
+      
+      // Guardar datos si fueron encontrados
+      if (nombreMatch) {
+        reservationStates[sessionId].nombre = nombreMatch[0];
+      }
+      
+      if (telefonoMatch) {
+        // Normalizar formato del teléfono
+        reservationStates[sessionId].telefono = telefonoMatch[0].replace(/\s+/g, '');
+        if (!reservationStates[sessionId].telefono.startsWith('+')) {
+          if (reservationStates[sessionId].telefono.startsWith('9')) {
+            reservationStates[sessionId].telefono = '+56' + reservationStates[sessionId].telefono;
+          }
+        }
+      }
+      
+      // Verificar si tenemos suficiente información
+      if (reservationStates[sessionId].nombre && reservationStates[sessionId].telefono) {
+        reservationStates[sessionId].paso = 'confirmacion';
+        
+        const fechaFormateada = new Date(reservationStates[sessionId].fecha)
+          .toLocaleDateString('es-ES', { 
+            weekday: 'long', 
+            year: 'numeric', 
+            month: 'long', 
+            day: 'numeric' 
+          });
+        
+        return {
+          mensajePersonalizado: `Por favor, confirma los siguientes datos para tu reserva:\n\n` +
+            `📅 Fecha: ${fechaFormateada}\n` +
+            `⏰ Hora: ${reservationStates[sessionId].hora}\n` +
+            `👤 Nombre: ${reservationStates[sessionId].nombre}\n` +
+            `📱 Teléfono: ${reservationStates[sessionId].telefono}\n\n` +
+            `¿Es correcta esta información? Responde SÍ para confirmar o NO para modificar algún dato.`
+        };
+      } else {
+        let mensajeFaltante = "Aún necesito ";
+        
+        if (!reservationStates[sessionId].nombre) mensajeFaltante += "tu nombre completo, ";
+        if (!reservationStates[sessionId].telefono) mensajeFaltante += "tu número de teléfono, ";
+        
+        mensajeFaltante = mensajeFaltante.slice(0, -2) + ".";
+        
+        return {
+          mensajePersonalizado: mensajeFaltante
+        };
+      }
+    } else if (reservationStates[sessionId].paso === 'confirmacion') {
+      // Verificar confirmación
+      if (/\b(s[iíÍ]|yes|confirmo|correcto|adelante)\b/i.test(mensaje)) {
+        // Crear la reserva en el sistema
+        try {
+          const resultado = await supabaseClient.crearReserva({
+            fecha: reservationStates[sessionId].fecha,
+            hora: reservationStates[sessionId].hora,
+            nombre_cliente: reservationStates[sessionId].nombre,
+            telefono: reservationStates[sessionId].telefono,
+            email: reservationStates[sessionId].email || null
+          });
+          
+          // Limpiar el estado de reserva
+          delete reservationStates[sessionId];
+          
+          if (resultado.exito) {
+            return {
+              mensajePersonalizado: `¡Reserva confirmada exitosamente! Tu número de reserva es: ${resultado.id}.\n\n` +
+                `La dirección exacta es: Calle José Victorino Lastarria 94, local 5, Santiago, a pasos de Metro Baquedano.\n\n` +
+                `Por favor, llega 5 minutos antes de tu hora reservada. Al llegar, llama al +56 9 4729 5678.\n\n` +
+                `¡Esperamos verte pronto para tu experiencia QuantumVibe!`
+            };
+          } else {
+            return {
+              mensajePersonalizado: `Lo siento, hubo un problema al crear tu reserva: ${resultado.mensaje}. Por favor, intenta nuevamente o contáctanos directamente.`
+            };
+          }
+        } catch (error) {
+          console.error('Error al crear reserva:', error);
+          return {
+            mensajePersonalizado: "Lo siento, hubo un error al procesar tu reserva. Por favor, intenta nuevamente más tarde o contáctanos directamente."
+          };
+        }
+      } else if (/\b(no|incorrecto|cambiar|modificar)\b/i.test(mensaje)) {
+        // Volver al paso inicial
+        reservationStates[sessionId].paso = 'inicio';
+        return {
+          mensajePersonalizado: "Entendido. Vamos a reiniciar el proceso de reserva. Por favor, indícame nuevamente qué fecha y hora te interesa."
+        };
+      } else {
+        return {
+          mensajePersonalizado: "Por favor, confirma si los datos son correctos respondiendo SÍ o NO."
+        };
+      }
     }
   }
   
   return null;
+};
+
+// Función para cargar conversación previa desde sistema (sin guardar en Supabase)
+const inicializarConversacion = () => {
+  return [
+    { role: 'system', content: systemPrompt },
+    { role: 'assistant', content: initialAssistantMessage }
+  ];
 };
 
 app.post('/chat', async (req, res) => {
@@ -247,12 +506,9 @@ app.post('/chat', async (req, res) => {
       return res.status(500).json({ error: 'Error de configuración del servidor: La API key de Groq no está configurada.' });
     }
 
-    // Iniciar conversación si no existe
+    // Inicializar conversación si no existe
     if (!conversations[sessionId]) {
-      conversations[sessionId] = [
-        { role: 'system', content: systemPrompt },
-        { role: 'assistant', content: initialAssistantMessage }
-      ];
+      conversations[sessionId] = inicializarConversacion();
     }
 
     // Agregar mensaje del usuario
@@ -264,6 +520,7 @@ app.post('/chat', async (req, res) => {
     if (intencionReserva && intencionReserva.mensajePersonalizado) {
       // Usar mensaje personalizado en lugar de llamar a la API
       conversations[sessionId].push({ role: 'assistant', content: intencionReserva.mensajePersonalizado });
+      
       return res.json({ reply: intencionReserva.mensajePersonalizado });
     }
 
@@ -285,8 +542,9 @@ app.post('/chat', async (req, res) => {
 
     const reply = response.data.choices[0].message.content;
 
+    // Agregar respuesta del asistente
     conversations[sessionId].push({ role: 'assistant', content: reply });
-
+    
     res.json({ reply });
   } catch (error) {
     console.error('Error en la API de Groq:', error.response?.data || error.message);

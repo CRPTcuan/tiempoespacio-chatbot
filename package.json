@@ -6,13 +6,14 @@
   "scripts": {
     "start": "node index.js",
     "dev": "nodemon index.js",
-    "keep-alive": "node scripts/test-keep-alive.js"
+    "setup-simple": "node scripts/setup-supabase-simple.js"
   },
   "dependencies": {
     "express": "^4.18.2",
     "axios": "^1.6.7",
     "dotenv": "^16.4.1",
-    "cors": "^2.8.5"
+    "cors": "^2.8.5",
+    "@supabase/supabase-js": "^2.39.0"
   },
   "devDependencies": {
     "nodemon": "^3.0.3"

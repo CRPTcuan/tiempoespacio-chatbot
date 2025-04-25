@@ -1,123 +1,109 @@
-# 🤖 Tiempoespacio Chatbot
+# QuantumVibe - Chatbot de Reservas
 
-Un chatbot personalizado para Tiempoespacio.cl usando la API de Groq, con una interfaz web moderna y fácil de integrar.
+Sistema de chatbot para gestionar reservas de las Cápsulas QuantumVibe, un espacio innovador que ofrece sesiones terapéuticas donde las personas experimentan sonido, frecuencia, vibración y luz para transformar su energía.
 
-![Chatbot Demo](public/demo.gif)
+## Características
 
-## ✨ Características
+- 💬 Chatbot interactivo para información y reservas
+- 📅 Sistema de gestión de disponibilidad y reservas
+- 🛎️ Programas específicos: Descanso Profundo, Concentración y Foco, Creatividad
+- ⏰ Horarios disponibles: 10:00, 12:00, 15:00 y 17:00 (martes a sábado)
+- 🔒 Seguridad con validación de clientes y lista de restricciones
 
-- 💬 Chat flotante con diseño moderno y responsive
-- 🎨 Personalizable (colores, posición, mensajes)
-- 🧠 Integración con Groq AI para respuestas inteligentes
-- 💾 Manejo de sesiones para mantener el contexto
-- 🚀 Fácil de integrar en cualquier sitio web
-- 📱 Diseño optimizado para móviles
-- 🌈 Animaciones suaves y feedback visual
-- 🔄 Keep-alive para mantener el servicio activo
+## Arquitectura
 
-## 🛠️ Tecnologías
+El sistema utiliza:
+- **Frontend**: HTML/CSS/JavaScript para la interfaz de chat
+- **Backend**: Node.js con Express
+- **Base de datos**: Supabase (PostgreSQL)
+- **Modelo de lenguaje**: Groq (API compatible con OpenAI)
 
-- Node.js 20+
-- Express.js
-- API de Groq
-- Docker
-- HTML/CSS/JavaScript (vanilla)
+## Despliegue en Render
 
-## 🚀 Inicio Rápido
+Para desplegar este proyecto en Render.com:
 
-### Usando Docker (recomendado)
+1. **Preparación**:
+   - Haz un fork o clona este repositorio en GitHub
+   - Crea una cuenta en [Supabase](https://supabase.com) si aún no tienes una
+   - Crea una cuenta en [Render](https://render.com) si aún no tienes una
+   - Obtén una API key de [Groq](https://groq.ai) para el modelo de lenguaje
 
-1. Clona el repositorio:
-   ```bash
-   git clone https://github.com/CRPTcuan/tiempoespacio-chatbot.git
-   cd tiempoespacio-chatbot
+2. **Configuración inicial en Render**:
+   - Crea un nuevo Web Service vinculado a tu repositorio de GitHub
+   - Configura tu proyecto con:
+     - **Runtime**: Node.js
+     - **Build Command**: `npm install`
+     - **Start Command**: `npm run setup-simple` (temporalmente)
+     - **Environment Variables**: Todas las listadas en el archivo `.env.example`
+
+3. **Configuración de Supabase**:
+   - Una vez desplegado el servicio, accede a la URL proporcionada por Render
+   - Sigue las instrucciones en pantalla para configurar automáticamente la base de datos
+   - Verifica que la configuración se haya completado correctamente
+   - Si encuentras algún error, consulta el archivo `DEPLOY_RENDER.md`
+
+4. **Finalización**:
+   - Regresa al panel de Render
+   - Cambia el comando de inicio a: `npm start`
+   - Despliega nuevamente la aplicación
+
+Para instrucciones detalladas, consulta el archivo `DEPLOY_RENDER.md` en este repositorio.
+
+## Variables de Entorno
+
+Todas las variables de entorno están centralizadas en el archivo `.env` para desarrollo local y en las variables de entorno de tu proveedor de hosting para producción. Consulta el archivo `.env.example` para ver todas las variables requeridas y opcionales.
+
+### Variables Obligatorias
+
+| Variable | Descripción |
+|----------|-------------|
+| `SUPABASE_URL` | URL de tu proyecto Supabase (ej: https://tu-proyecto.supabase.co) |
+| `SUPABASE_KEY` | Service Role Key de Supabase (no la anon/public) |
+| `GROQ_API_KEY` | API Key de Groq para el modelo de lenguaje |
+
+### Variables Opcionales
+
+| Variable | Descripción | Valor por defecto |
+|----------|-------------|-------------------|
+| `PORT` | Puerto para el servidor | 3000 |
+| `KEEP_ALIVE_URL` | URL para el script keep-alive | http://localhost:[PORT]/keep-alive |
+| `KEEP_ALIVE_INTERVAL` | Intervalo para el keep-alive (ms) | 300000 (5 minutos) |
+
+## Desarrollo Local
+
+Para desarrollo local:
+
+1. Clona el repositorio
+   ```
+   git clone https://github.com/tu-usuario/5D-chatbot.git
+   cd 5D-chatbot
    ```
 
-2. Configura las variables de entorno:
-   ```bash
-   cp .env.example .env
-   # Edita .env y añade tu GROQ_API_KEY
+2. Instala las dependencias
    ```
-
-3. Construye y ejecuta con Docker:
-   ```bash
-   docker build -t tiempoespacio-chatbot .
-   docker run -p 3000:3000 -e GROQ_API_KEY=tu_api_key tiempoespacio-chatbot
-   ```
-
-### Instalación Manual
-
-1. Instala las dependencias:
-   ```bash
    npm install
    ```
 
-2. Inicia el servidor:
-   ```bash
-   npm run dev   # desarrollo
-   npm start     # producción
+3. Crea un archivo `.env` basado en `.env.example` con tus propias variables
+
+4. Inicia el servidor en modo desarrollo
+   ```
+   npm run dev
    ```
 
-## 💻 Integración
+## Mantenimiento
 
-Añade el chatbot a tu sitio web con solo dos líneas de código:
+Para mantener el sistema:
 
-```html
-<script src="https://tu-servidor.com/chat-widget.js"></script>
-<script>
-    new TiempoespacioChat({
-        position: 'bottom-right',
-        primaryColor: '#ff69b4'
-    });
-</script>
-```
+1. **Actualizaciones**: Push a GitHub y Render desplegará automáticamente
+2. **Monitoreo**: Usa la sección "Logs" en Render para supervisar actividad y errores
+3. **Reservas**: Puedes acceder a las reservas directamente desde Supabase
 
-### Opciones de Configuración
+## Estructura del Proyecto
 
-| Opción | Tipo | Default | Descripción |
-|--------|------|---------|-------------|
-| position | string | 'bottom-right' | Posición del botón ('bottom-right', 'bottom-left', 'top-right', 'top-left') |
-| primaryColor | string | '#ff69b4' | Color principal del chatbot |
-
-## 🌐 Despliegue en Render
-
-1. Conecta tu repositorio de GitHub a Render
-2. Crea un nuevo Web Service
-3. Configura las variables de entorno:
-   - `GROQ_API_KEY`: Tu API key de Groq
-   - `PORT`: 3000
-
-### Mantener Activo el Servicio
-
-Para evitar la inactividad en el plan gratuito de Render:
-1. Configura UptimeRobot para hacer ping cada 10 minutos
-2. URL del ping: `https://tu-servicio.onrender.com/keep-alive`
-
-## 📝 Personalización del Chatbot
-
-El chatbot viene preconfigurado con una personalidad amigable y cercana, usando chilenismos y enfocado en los servicios de Tiempoespacio. Puedes modificar:
-
-- Prompt del sistema
-- Mensajes de bienvenida
-- Estilos y diseño
-- Comportamiento y respuestas
-
-## 🤝 Contribuir
-
-Las contribuciones son bienvenidas. Por favor:
-
-1. Haz fork del repositorio
-2. Crea una rama para tu feature (`git checkout -b feature/AmazingFeature`)
-3. Commit tus cambios (`git commit -m 'Add some AmazingFeature'`)
-4. Push a la rama (`git push origin feature/AmazingFeature`)
-5. Abre un Pull Request
-
-## 📄 Licencia
-
-Distribuido bajo la Licencia MIT. Ver `LICENSE` para más información.
-
-## 📞 Contacto
-
-Tiempoespacio - [Hablar por WhatsApp](https://wa.me/+56947929330)
-
-[https://github.com/CRPTcuan/tiempoespacio-chatbot](https://github.com/CRPTcuan/tiempoespacio-chatbot) 
+- `/public` - Archivos estáticos públicos
+- `/scripts` - Scripts para configuración y utilidades
+- `index.js` - Punto de entrada principal
+- `DEPLOY_RENDER.md` - Guía detallada de despliegue
+- `VARIABLES_ENTORNO.md` - Documentación de las variables de entorno
+- `.env.example` - Ejemplo de configuración de variables de entorno 
