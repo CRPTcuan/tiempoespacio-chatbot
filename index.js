@@ -262,9 +262,9 @@ const procesarIntencionReserva = async (mensaje, sessionId) => {
       
       fechasDisponibles.slice(0, 7).forEach(fechaInfo => {
         const fechaFormateada = reservasManager.formatearFecha(fechaInfo.fecha);
-        mensajeFechas += `📅 ${fechaFormateada}:\n`;
+        mensajeFechas += `📅 ${fechaFormateada}:\n\n`;
         
-        // Formatear horarios disponibles
+        // Formatear horarios disponibles (uno por línea)
         fechaInfo.horarios.forEach(h => {
           const horaFormateada = h.hora.substring(0, 5);
           mensajeFechas += `   ⏰ ${horaFormateada}\n`;
@@ -277,7 +277,8 @@ const procesarIntencionReserva = async (mensaje, sessionId) => {
       mensajeFechas += "1️⃣ Fecha deseada (ejemplo: 'el jueves 20')\n";
       mensajeFechas += "2️⃣ Hora (ejemplo: '10:00')\n";
       mensajeFechas += "3️⃣ Tu nombre completo\n";
-      mensajeFechas += "4️⃣ Número de teléfono\n";
+      mensajeFechas += "4️⃣ Tu correo electrónico\n";
+      mensajeFechas += "5️⃣ Número de teléfono\n";
       
       return {
         mensajePersonalizado: mensajeFechas
@@ -367,7 +368,7 @@ const procesarIntencionReserva = async (mensaje, sessionId) => {
           });
         
         return {
-          mensajePersonalizado: `¡Excelente elección! Has seleccionado una sesión para el ${fechaFormateada} a las ${reservationStates[sessionId].hora}.\n\nAhora necesito tus datos personales. Por favor, indícame tu nombre completo y número de teléfono.`
+          mensajePersonalizado: `¡Excelente elección! Has seleccionado una sesión para el ${fechaFormateada} a las ${reservationStates[sessionId].hora}.\n\nAhora necesito tus datos personales.\n\nPor favor, indícame:\n\n1️⃣ Tu nombre completo\n2️⃣ Tu correo electrónico\n3️⃣ Tu número de teléfono`
         };
       } else {
         let mensajeFaltante = "Para continuar con la reserva, necesito ";
@@ -382,7 +383,7 @@ const procesarIntencionReserva = async (mensaje, sessionId) => {
         };
       }
     } else if (reservationStates[sessionId].paso === 'datos_personales') {
-      // Extraer posible nombre y teléfono
+      // Extraer posible nombre, email y teléfono
       
       // Patrón simple para detectar nombres (2+ palabras)
       const nombrePattern = /\b([A-Za-zÀ-ÖØ-öø-ÿ]+(?:\s+[A-Za-zÀ-ÖØ-öø-ÿ]+)+)\b/;
@@ -392,12 +393,16 @@ const procesarIntencionReserva = async (mensaje, sessionId) => {
       const telefonoPattern = /(?:\+?56\s?9|9)\s?\d{4}\s?\d{4}/;
       const telefonoMatch = mensaje.match(telefonoPattern);
       
+      // Patrón para correo electrónico
+      const emailPattern = /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b/;
+      const emailMatch = mensaje.match(emailPattern);
+      
       // Guardar datos si fueron encontrados
-      if (nombreMatch) {
+      if (nombreMatch && !reservationStates[sessionId].nombre) {
         reservationStates[sessionId].nombre = nombreMatch[0];
       }
       
-      if (telefonoMatch) {
+      if (telefonoMatch && !reservationStates[sessionId].telefono) {
         // Normalizar formato del teléfono
         reservationStates[sessionId].telefono = telefonoMatch[0].replace(/\s+/g, '');
         if (!reservationStates[sessionId].telefono.startsWith('+')) {
@@ -407,8 +412,14 @@ const procesarIntencionReserva = async (mensaje, sessionId) => {
         }
       }
       
+      if (emailMatch && !reservationStates[sessionId].email) {
+        reservationStates[sessionId].email = emailMatch[0];
+      }
+      
       // Verificar si tenemos suficiente información
-      if (reservationStates[sessionId].nombre && reservationStates[sessionId].telefono) {
+      if (reservationStates[sessionId].nombre && 
+          reservationStates[sessionId].telefono && 
+          reservationStates[sessionId].email) {
         reservationStates[sessionId].paso = 'confirmacion';
         
         const fechaFormateada = new Date(reservationStates[sessionId].fecha)
@@ -424,6 +435,7 @@ const procesarIntencionReserva = async (mensaje, sessionId) => {
             `📅 Fecha: ${fechaFormateada}\n` +
             `⏰ Hora: ${reservationStates[sessionId].hora}\n` +
             `👤 Nombre: ${reservationStates[sessionId].nombre}\n` +
+            `📧 Email: ${reservationStates[sessionId].email}\n` +
             `📱 Teléfono: ${reservationStates[sessionId].telefono}\n\n` +
             `¿Es correcta esta información? Responde SÍ para confirmar o NO para modificar algún dato.`
         };
@@ -431,6 +443,7 @@ const procesarIntencionReserva = async (mensaje, sessionId) => {
         let mensajeFaltante = "Aún necesito ";
         
         if (!reservationStates[sessionId].nombre) mensajeFaltante += "tu nombre completo, ";
+        if (!reservationStates[sessionId].email) mensajeFaltante += "tu correo electrónico, ";
         if (!reservationStates[sessionId].telefono) mensajeFaltante += "tu número de teléfono, ";
         
         mensajeFaltante = mensajeFaltante.slice(0, -2) + ".";
@@ -449,7 +462,7 @@ const procesarIntencionReserva = async (mensaje, sessionId) => {
             hora: reservationStates[sessionId].hora,
             nombre_cliente: reservationStates[sessionId].nombre,
             telefono: reservationStates[sessionId].telefono,
-            email: reservationStates[sessionId].email || null
+            email: reservationStates[sessionId].email
           });
           
           // Limpiar el estado de reserva
@@ -460,6 +473,8 @@ const procesarIntencionReserva = async (mensaje, sessionId) => {
               mensajePersonalizado: `¡Reserva confirmada exitosamente! Tu número de reserva es: ${resultado.id}.\n\n` +
                 `La dirección exacta es: Calle José Victorino Lastarria 94, local 5, Santiago, a pasos de Metro Baquedano.\n\n` +
                 `Por favor, llega 5 minutos antes de tu hora reservada. Al llegar, llama al +56 9 4729 5678.\n\n` +
+                `Te hemos enviado un correo de confirmación con estos detalles. Si deseas añadir esta cita a tu calendario, puedes usar este enlace:\n\n` +
+                `${resultado.calendario}\n\n` +
                 `¡Esperamos verte pronto para tu experiencia QuantumVibe!`
             };
           } else {

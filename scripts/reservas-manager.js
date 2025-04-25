@@ -1,10 +1,15 @@
 const fs = require('fs').promises;
 const path = require('path');
+const nodemailer = require('nodemailer');
+const emailManager = require('./email-manager');
 
 // Ruta al archivo JSON que almacenará las reservas
 const RESERVAS_FILE = path.join(__dirname, '../data/reservas.json');
 const DIAS_DISPONIBLES = ['martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
 const HORAS_DISPONIBLES = ['10:00', '12:00', '15:00', '17:00'];
+
+// Configuración de correo electrónico
+const EMAIL_SISTEMA = 'QuantumVibeStgo@protonmail.com';
 
 // Asegurar que el directorio de datos exista
 async function inicializarSistema() {
@@ -22,6 +27,9 @@ async function inicializarSistema() {
       // Si el archivo no existe, lo creamos con una estructura inicial vacía
       await fs.writeFile(RESERVAS_FILE, JSON.stringify({ reservas: [] }));
     }
+    
+    // Inicializar el sistema de correos
+    await emailManager.inicializarEmailManager();
     
     console.log('Sistema de reservas inicializado correctamente');
     return true;
@@ -122,11 +130,70 @@ async function obtenerProximasFechasDisponibles(diasAMostrar = 14) {
   return fechasDisponibles;
 }
 
+// Enviar correo de confirmación
+async function enviarCorreoConfirmacion(reserva, urlCalendario) {
+  try {
+    // Enviar correo al cliente
+    await emailManager.enviarConfirmacionCliente(reserva, urlCalendario);
+    
+    // Enviar notificación al sistema
+    await emailManager.enviarNotificacionSistema(reserva);
+    
+    return true;
+  } catch (error) {
+    console.error('Error al enviar correos de confirmación:', error);
+    return false;
+  }
+}
+
+// Generar evento para Google Calendar
+function generarEventoCalendario(reserva) {
+  const fechaISO = reserva.fecha;
+  const horaInicio = reserva.hora;
+  const horaFin = sumarMinutosAHora(horaInicio, 40);
+  
+  const fechaInicio = `${fechaISO}T${horaInicio}:00`;
+  const fechaFin = `${fechaISO}T${horaFin}:00`;
+  
+  const evento = {
+    title: 'Sesión en Cápsulas QuantumVibe',
+    description: `Reserva para ${reserva.nombre_cliente}. Por favor, llega 5 minutos antes de tu hora reservada. Al llegar, llama al +56 9 4729 5678.`,
+    location: 'Calle José Victorino Lastarria 94, local 5, Santiago',
+    startTime: fechaInicio,
+    endTime: fechaFin
+  };
+  
+  // Generar URL para Google Calendar
+  const googleCalendarUrl = 'https://calendar.google.com/calendar/render?' + 
+    'action=TEMPLATE' + 
+    `&text=${encodeURIComponent(evento.title)}` + 
+    `&dates=${fechaInicio.replace(/[-:]/g, '')}/${fechaFin.replace(/[-:]/g, '')}` + 
+    `&details=${encodeURIComponent(evento.description)}` + 
+    `&location=${encodeURIComponent(evento.location)}` + 
+    '&sf=true&output=xml';
+  
+  return {
+    evento,
+    googleCalendarUrl
+  };
+}
+
+// Función auxiliar para sumar minutos a una hora
+function sumarMinutosAHora(hora, minutos) {
+  const [horas, minutosActuales] = hora.split(':').map(Number);
+  
+  let totalMinutos = (horas * 60 + minutosActuales) + minutos;
+  const nuevasHoras = Math.floor(totalMinutos / 60);
+  const nuevosMinutos = totalMinutos % 60;
+  
+  return `${nuevasHoras.toString().padStart(2, '0')}:${nuevosMinutos.toString().padStart(2, '0')}`;
+}
+
 // Crear una nueva reserva
 async function crearReserva(datosReserva) {
   try {
     // Validar datos mínimos requeridos
-    if (!datosReserva.fecha || !datosReserva.hora || !datosReserva.nombre_cliente || !datosReserva.telefono) {
+    if (!datosReserva.fecha || !datosReserva.hora || !datosReserva.nombre_cliente || !datosReserva.telefono || !datosReserva.email) {
       return { 
         exito: false, 
         mensaje: 'Faltan datos requeridos para la reserva' 
@@ -157,7 +224,7 @@ async function crearReserva(datosReserva) {
       hora: datosReserva.hora,
       nombre_cliente: datosReserva.nombre_cliente,
       telefono: datosReserva.telefono,
-      email: datosReserva.email || null,
+      email: datosReserva.email,
       creada_en: new Date().toISOString()
     };
     
@@ -167,10 +234,17 @@ async function crearReserva(datosReserva) {
     // Guardar cambios
     await guardarReservas(data);
     
+    // Generar información para Google Calendar
+    const infoCalendario = generarEventoCalendario(nuevaReserva);
+    
+    // Intentar enviar correo de confirmación
+    await enviarCorreoConfirmacion(nuevaReserva, infoCalendario.googleCalendarUrl);
+    
     return { 
       exito: true, 
       id: reservaId,
-      mensaje: 'Reserva creada exitosamente' 
+      mensaje: 'Reserva creada exitosamente',
+      calendario: infoCalendario.googleCalendarUrl
     };
   } catch (error) {
     console.error('Error al crear reserva:', error);
