@@ -482,7 +482,7 @@
 
             } catch (error) {
                 console.error('Error en sendMessage:', error);
-                appendMessage(`Lo siento, hubo un problema (${error.message}). Intenta de nuevo o contacta soporte si persiste.`, 'bot');
+                appendMessage(`Lo siento, hay un problema con nuestro servicio de chat en este momento. El servidor respondió: "${error.message}". Por favor, intenta más tarde o contáctanos directamente para reservar tu sesión.`, 'bot');
             } finally {
                 loading.style.display = 'none';
                 chatMessages.scrollTop = chatMessages.scrollHeight;
