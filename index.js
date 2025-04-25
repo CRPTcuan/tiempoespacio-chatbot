@@ -343,14 +343,49 @@ const procesarIntencionReserva = async (mensaje, sessionId) => {
         
         // También buscar formatos alternativos (3pm = 15:00)
         if (!horaMencionada) {
-          if (mensaje.match(/\b3\s*pm\b/i)) horaMencionada = '15:00';
-          if (mensaje.match(/\b5\s*pm\b/i)) horaMencionada = '17:00';
-          if (mensaje.match(/\b10\s*am\b/i)) horaMencionada = '10:00';
-          if (mensaje.match(/\b12\s*pm\b/i)) horaMencionada = '12:00';
+          // Patrones más flexibles para detectar horas
+          if (mensaje.match(/\b3\s*pm\b/i) || mensaje.match(/\blas\s*3\b/i) || mensaje.match(/\ba\s*las\s*3\b/i) || mensaje.match(/\b15\b/i) || mensaje.match(/\b15:00\b/i) || mensaje.match(/\b3\s*$\b/i)) horaMencionada = '15:00';
+          if (mensaje.match(/\b5\s*pm\b/i) || mensaje.match(/\blas\s*5\b/i) || mensaje.match(/\ba\s*las\s*5\b/i) || mensaje.match(/\b17\b/i) || mensaje.match(/\b17:00\b/i) || mensaje.match(/\b5\s*$\b/i)) horaMencionada = '17:00';
+          if (mensaje.match(/\b10\s*am\b/i) || mensaje.match(/\blas\s*10\b/i) || mensaje.match(/\ba\s*las\s*10\b/i) || mensaje.match(/\b10\b/i) || mensaje.match(/\b10:00\b/i) || mensaje.match(/\b10\s*$\b/i)) horaMencionada = '10:00';
+          if (mensaje.match(/\b12\s*pm\b/i) || mensaje.match(/\blas\s*12\b/i) || mensaje.match(/\ba\s*las\s*12\b/i) || mensaje.match(/\b12\b/i) || mensaje.match(/\b12:00\b/i) || mensaje.match(/\b12\s*$\b/i)) horaMencionada = '12:00';
+          if (mensaje.match(/\b11\b/i) || mensaje.match(/\b11:00\b/i) || mensaje.match(/\blas\s*11\b/i) || mensaje.match(/\ba\s*las\s*11\b/i)) horaMencionada = '12:00'; // Mapear 11 a 12:00
+          
+          // Intentar detectar números y convertirlos a horas disponibles
+          if (!horaMencionada) {
+            const numeroPattern = /\b(\d{1,2})\b/;
+            const numeroMatch = mensaje.match(numeroPattern);
+            
+            if (numeroMatch) {
+              const numero = parseInt(numeroMatch[1], 10);
+              // Mapear números cercanos a las horas disponibles
+              if (numero >= 9 && numero <= 10) horaMencionada = '10:00';
+              else if (numero >= 11 && numero <= 13) horaMencionada = '12:00';
+              else if (numero >= 14 && numero <= 15) horaMencionada = '15:00';
+              else if (numero >= 16 && numero <= 18) horaMencionada = '17:00';
+            }
+          }
         }
         
         if (horaMencionada) {
           reservationStates[sessionId].hora = horaMencionada;
+        }
+      } else {
+        // Intentar detectar horas incluso si no se detectó con los patrones principales
+        const numeroPattern = /\b(\d{1,2})\b/;
+        const numeroMatch = mensaje.match(numeroPattern);
+        
+        if (numeroMatch) {
+          const numero = parseInt(numeroMatch[1], 10);
+          // Mapear números a las horas disponibles
+          let horaMapeada = null;
+          if (numero >= 9 && numero <= 10) horaMapeada = '10:00';
+          else if (numero >= 11 && numero <= 13) horaMapeada = '12:00';
+          else if (numero >= 14 && numero <= 15) horaMapeada = '15:00';
+          else if (numero >= 16 && numero <= 18) horaMapeada = '17:00';
+          
+          if (horaMapeada) {
+            reservationStates[sessionId].hora = horaMapeada;
+          }
         }
       }
       
@@ -374,7 +409,46 @@ const procesarIntencionReserva = async (mensaje, sessionId) => {
         let mensajeFaltante = "Para continuar con la reserva, necesito ";
         
         if (!reservationStates[sessionId].fecha) mensajeFaltante += "la fecha que prefieres, ";
-        if (!reservationStates[sessionId].hora) mensajeFaltante += "la hora que te gustaría, ";
+        if (!reservationStates[sessionId].hora) {
+          // Intentar extraer un número directamente del mensaje
+          const numeroPattern = /\b(\d{1,2})\b/;
+          const numeroMatch = mensaje.match(numeroPattern);
+          
+          if (numeroMatch) {
+            const numero = parseInt(numeroMatch[1], 10);
+            // Mapear a la hora disponible más cercana
+            if (numero >= 9 && numero <= 10) reservationStates[sessionId].hora = '10:00';
+            else if (numero >= 11 && numero <= 13) reservationStates[sessionId].hora = '12:00';
+            else if (numero >= 14 && numero <= 15) reservationStates[sessionId].hora = '15:00';
+            else if (numero >= 16 && numero <= 18) reservationStates[sessionId].hora = '17:00';
+            
+            if (reservationStates[sessionId].hora) {
+              // Si pudimos extraer y asignar una hora, actualizar el mensaje
+              mensajeFaltante = `He registrado la hora ${reservationStates[sessionId].hora}. Ahora necesito `;
+              if (!reservationStates[sessionId].fecha) mensajeFaltante += "la fecha que prefieres.";
+              else {
+                // Si ya tenemos fecha y hora, avanzar al siguiente paso
+                reservationStates[sessionId].paso = 'datos_personales';
+                
+                const fechaFormateada = new Date(reservationStates[sessionId].fecha)
+                  .toLocaleDateString('es-ES', { 
+                    weekday: 'long', 
+                    year: 'numeric', 
+                    month: 'long', 
+                    day: 'numeric' 
+                  });
+                
+                return {
+                  mensajePersonalizado: `¡Excelente elección! Has seleccionado una sesión para el ${fechaFormateada} a las ${reservationStates[sessionId].hora}.\n\nAhora necesito tus datos personales.\n\nPor favor, indícame:\n\n1️⃣ Tu nombre completo\n2️⃣ Tu correo electrónico\n3️⃣ Tu número de teléfono`
+                };
+              }
+            } else {
+              mensajeFaltante += "la hora que te gustaría (disponibles: 10:00, 12:00, 15:00 o 17:00), ";
+            }
+          } else {
+            mensajeFaltante += "la hora que te gustaría (disponibles: 10:00, 12:00, 15:00 o 17:00), ";
+          }
+        }
         
         mensajeFaltante = mensajeFaltante.slice(0, -2) + ".";
         
@@ -434,162 +508,55 @@ const procesarIntencionReserva = async (mensaje, sessionId) => {
           mensajePersonalizado: `Por favor, confirma los siguientes datos para tu reserva:\n\n` +
             `📅 Fecha: ${fechaFormateada}\n` +
             `⏰ Hora: ${reservationStates[sessionId].hora}\n` +
-            `👤 Nombre: ${reservationStates[sessionId].nombre}\n` +
-            `📧 Email: ${reservationStates[sessionId].email}\n` +
-            `📱 Teléfono: ${reservationStates[sessionId].telefono}\n\n` +
-            `¿Es correcta esta información? Responde SÍ para confirmar o NO para modificar algún dato.`
+            `1️⃣ Nombre: ${reservationStates[sessionId].nombre}\n` +
+            `2️⃣ Correo electrónico: ${reservationStates[sessionId].email}\n` +
+            `3️⃣ Número de teléfono: ${reservationStates[sessionId].telefono}`
         };
       } else {
-        let mensajeFaltante = "Aún necesito ";
-        
-        if (!reservationStates[sessionId].nombre) mensajeFaltante += "tu nombre completo, ";
-        if (!reservationStates[sessionId].email) mensajeFaltante += "tu correo electrónico, ";
-        if (!reservationStates[sessionId].telefono) mensajeFaltante += "tu número de teléfono, ";
-        
-        mensajeFaltante = mensajeFaltante.slice(0, -2) + ".";
+        let mensajeFaltante = "Para completar la reserva, necesitamos algunos datos más. Por favor, indícame:\n\n1️⃣ Tu nombre completo\n2️⃣ Tu correo electrónico\n3️⃣ Tu número de teléfono\n\nSi ya tienes estos datos, por favor, confírmalos. Si no, por favor, proporcionármelos para que podamos continuar con tu reserva.`;
         
         return {
           mensajePersonalizado: mensajeFaltante
         };
       }
     } else if (reservationStates[sessionId].paso === 'confirmacion') {
-      // Verificar confirmación
-      if (/\b(s[iíÍ]|yes|confirmo|correcto|adelante)\b/i.test(mensaje)) {
-        // Crear la reserva en el sistema
-        try {
-          const resultado = await reservasManager.crearReserva({
-            fecha: reservationStates[sessionId].fecha,
-            hora: reservationStates[sessionId].hora,
-            nombre_cliente: reservationStates[sessionId].nombre,
-            telefono: reservationStates[sessionId].telefono,
-            email: reservationStates[sessionId].email
+      // Procesar la confirmación de la reserva
+      const confirmacion = mensaje.toLowerCase().includes('confirmo');
+      if (confirmacion) {
+        const fechaFormateada = new Date(reservationStates[sessionId].fecha)
+          .toLocaleDateString('es-ES', { 
+            weekday: 'long', 
+            year: 'numeric', 
+            month: 'long', 
+            day: 'numeric' 
           });
-          
-          // Limpiar el estado de reserva
-          delete reservationStates[sessionId];
-          
-          if (resultado.exito) {
-            return {
-              mensajePersonalizado: `¡Reserva confirmada exitosamente! Tu número de reserva es: ${resultado.id}.\n\n` +
-                `La dirección exacta es: Calle José Victorino Lastarria 94, local 5, Santiago, a pasos de Metro Baquedano.\n\n` +
-                `Por favor, llega 5 minutos antes de tu hora reservada. Al llegar, llama al +56 9 4729 5678.\n\n` +
-                `Te hemos enviado un correo de confirmación con estos detalles. Si deseas añadir esta cita a tu calendario, puedes usar este enlace:\n\n` +
-                `${resultado.calendario}\n\n` +
-                `¡Esperamos verte pronto para tu experiencia QuantumVibe!`
-            };
-          } else {
-            return {
-              mensajePersonalizado: `Lo siento, hubo un problema al crear tu reserva: ${resultado.mensaje}. Por favor, intenta nuevamente o contáctanos directamente.`
-            };
-          }
-        } catch (error) {
-          console.error('Error al crear reserva:', error);
-          return {
-            mensajePersonalizado: "Lo siento, hubo un error al procesar tu reserva. Por favor, intenta nuevamente más tarde o contáctanos directamente."
-          };
-        }
-      } else if (/\b(no|incorrecto|cambiar|modificar)\b/i.test(mensaje)) {
-        // Volver al paso inicial
-        reservationStates[sessionId].paso = 'inicio';
+        
         return {
-          mensajePersonalizado: "Entendido. Vamos a reiniciar el proceso de reserva. Por favor, indícame nuevamente qué fecha y hora te interesa."
+          mensajePersonalizado: `¡Gracias por confirmar tu reserva! Te esperamos el ${fechaFormateada} a las ${reservationStates[sessionId].hora} en nuestras Cápsulas QuantumVibe. ¡Te esperamos con mucho entusiasmo!`;
         };
       } else {
+        let mensajeFaltante = "Por favor, confirma tu reserva para continuar. ¿Estás seguro de que quieres reservar una sesión en Cápsulas QuantumVibe el ${reservationStates[sessionId].fecha} a las ${reservationStates[sessionId].hora}?";
+        
         return {
-          mensajePersonalizado: "Por favor, confirma si los datos son correctos respondiendo SÍ o NO."
+          mensajePersonalizado: mensajeFaltante
         };
       }
     }
   }
-  
-  return null;
 };
 
-// Función para cargar conversación previa desde sistema (sin guardar en Supabase)
-const inicializarConversacion = () => {
-  return [
-    { role: 'system', content: systemPrompt },
-    { role: 'assistant', content: initialAssistantMessage }
-  ];
-};
-
-app.post('/chat', async (req, res) => {
+// Ruta para procesar mensajes de chat
+app.post('/api/chat', async (req, res) => {
+  const { mensaje, sessionId } = req.body;
   try {
-    const { message, sessionId } = req.body;
-
-    if (!sessionId || !message) {
-      return res.status(400).json({ error: 'Se requiere sessionId y mensaje' });
-    }
-
-    // Verificar si la API key está configurada
-    if (!GROQ_API_KEY) {
-      return res.status(500).json({ error: 'Error de configuración del servidor: La API key de Groq no está configurada.' });
-    }
-
-    // Inicializar conversación si no existe
-    if (!conversations[sessionId]) {
-      conversations[sessionId] = inicializarConversacion();
-    }
-
-    // Agregar mensaje del usuario
-    conversations[sessionId].push({ role: 'user', content: message });
-
-    // Procesar intención de reserva
-    const intencionReserva = await procesarIntencionReserva(message, sessionId);
-    
-    if (intencionReserva && intencionReserva.mensajePersonalizado) {
-      // Usar mensaje personalizado en lugar de llamar a la API
-      conversations[sessionId].push({ role: 'assistant', content: intencionReserva.mensajePersonalizado });
-      
-      return res.json({ reply: intencionReserva.mensajePersonalizado });
-    }
-
-    // Limitar el historial de conversación a los últimos 10 mensajes
-    const messagesToSend = conversations[sessionId].slice(-10);
-
-    const response = await axios.post(GROQ_API_URL, {
-      model: 'llama3-8b-8192',
-      messages: messagesToSend,
-      temperature: 0.7,
-      max_tokens: 1000
-    }, {
-      headers: {
-        'Authorization': `Bearer ${GROQ_API_KEY}`,
-        'Content-Type': 'application/json'
-      },
-      timeout: 30000 // 30 segundos de timeout
-    });
-
-    const reply = response.data.choices[0].message.content;
-
-    // Agregar respuesta del asistente
-    conversations[sessionId].push({ role: 'assistant', content: reply });
-    
-    res.json({ reply });
+    const respuesta = await procesarIntencionReserva(mensaje, sessionId);
+    res.json(respuesta);
   } catch (error) {
-    console.error('Error en la API de Groq:', error.response?.data || error.message);
-    
-    let errorMessage = 'Lo siento, hubo un error al procesar tu mensaje. ¿Podrías intentarlo de nuevo?';
-    
-    if (error.response?.status === 429) {
-      errorMessage = 'Estamos recibiendo muchas solicitudes. Por favor, intenta de nuevo en unos minutos.';
-    } else if (error.code === 'ECONNABORTED') {
-      errorMessage = 'La solicitud tardó demasiado tiempo. Por favor, intenta de nuevo.';
-    }
-    
-    res.status(500).json({ error: errorMessage });
+    console.error('Error al procesar mensaje:', error);
+    res.status(500).json({ error: 'Error al procesar mensaje' });
   }
 });
 
-app.get('/keep-alive', (req, res) => {
-  res.send('I\'m alive!');
-});
-
-// Añadir ruta para la página principal
-app.get('/', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'index.html'));
-});
-
 app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
-}); 
+  console.log(`Servidor escuchando en el puerto ${PORT}`);
+});
