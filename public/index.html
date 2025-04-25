@@ -325,6 +325,113 @@
         }
         /* --- Fin Estilos Chat --- */
 
+        /* Media queries para dispositivos móviles */
+        @media (max-width: 768px) {
+            section {
+                padding: 30px;
+                margin: 30px auto;
+            }
+            
+            h2 {
+                font-size: 2em;
+            }
+            
+            p, ul {
+                font-size: 1.1em;
+                line-height: 1.7;
+            }
+            
+            .chat-container {
+                max-width: 95%;
+                margin: 20px auto;
+            }
+            
+            .chat-messages {
+                height: 350px;
+                padding: 15px;
+            }
+            
+            .message {
+                padding: 10px 15px;
+                max-width: 90%;
+                font-size: 0.95em;
+            }
+            
+            .chat-input {
+                padding: 10px;
+            }
+            
+            .chat-input input[type="text"] {
+                padding: 10px;
+                font-size: 1em;
+            }
+            
+            .chat-input button {
+                padding: 10px 15px;
+                font-size: 1em;
+            }
+        }
+        
+        @media (max-width: 480px) {
+            header {
+                padding: 80px 15px;
+                min-height: 400px;
+            }
+            
+            header h1 {
+                font-size: 2.5em;
+            }
+            
+            header p {
+                font-size: 1.2em;
+            }
+            
+            section {
+                padding: 20px;
+                margin: 20px auto;
+            }
+            
+            h2 {
+                font-size: 1.8em;
+                margin-bottom: 20px;
+            }
+            
+            .highlight {
+                font-size: 1.2em;
+            }
+            
+            .chat-messages {
+                height: 300px;
+                padding: 10px;
+            }
+            
+            .message {
+                padding: 8px 12px;
+                margin-bottom: 10px;
+                max-width: 95%;
+                font-size: 0.9em;
+            }
+            
+            .chat-input {
+                flex-direction: column;
+                padding: 8px;
+            }
+            
+            .chat-input input[type="text"] {
+                width: 100%;
+                margin-right: 0;
+                margin-bottom: 8px;
+                padding: 10px;
+                box-sizing: border-box;
+                font-size: 16px; /* Evita el zoom al enfocar en iOS */
+            }
+            
+            .chat-input button {
+                width: 100%;
+                padding: 12px 10px;
+                font-size: 16px;
+            }
+        }
     </style>
     <!-- Script para XLSX - Mantenido -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
