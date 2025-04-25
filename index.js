@@ -6,11 +6,18 @@ const path = require('path');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+// Importar cliente de Supabase
+const supabaseClient = require('./scripts/supabase-client');
+
 app.use(express.json());
 app.use(cors());
 app.use(express.static(path.join(__dirname, 'public')));
 
+// Objeto para almacenar las sesiones de chat
 const conversations = {};
+
+// Objeto para almacenar estados de reserva en proceso
+const reservationStates = {};
 
 const GROQ_API_URL = 'https://api.groq.com/openai/v1/chat/completions';
 const GROQ_API_KEY = process.env.GROQ_API_KEY;
@@ -58,9 +65,11 @@ Cada sesión dura 40 minutos y los usuarios pueden elegir entre tres programas e
 Estos programas usan combinaciones únicas de frecuencias, vibraciones y sonidos para lograr efectos específicos en cuerpo y mente.
 
 **Disponibilidad**:
-- Solo hay 4 horas disponibles cada día para sesiones
+- Solo hay 4 horas disponibles cada día para sesiones: 10:00, 12:00, 15:00 y 17:00
 - Cada sesión dura 40 minutos exactos
+- Disponible de martes a sábado
 - Se requiere reserva previa
+- En caso de no asistir a una reserva sin cancelar previamente, el cliente puede ser añadido a una lista de restricción
 
 **Beneficios de las Cápsulas QuantumVibe**:
 - Alivio del estrés y la tensión muscular, mejorando la salud articular y reduciendo dolores.
@@ -75,6 +84,22 @@ Las sesiones de Cápsulas QuantumVibe son una forma de terapia vibroacústica, d
 Es importante destacar que NO es solo sonido lo que llega a tus oídos, sino una experiencia completa donde las frecuencias y vibraciones impactan directamente a tu cuerpo físico, activando un proceso de autoreparación y autorregenación a nivel celular. La combinación de sonido, frecuencia y vibración genera un efecto sinérgico que permite la transmutación energética y facilita la conexión con estados elevados de consciencia.
 
 Los usuarios pueden experimentar estados meditativos profundos, alivio del dolor o una sensación de conexión espiritual, contribuyendo a transformar y transmutar su energía en un mundo en transición.
+
+**Sistema de reservas**:
+- Los usuarios pueden reservar una sesión para cualquier día de martes a sábado.
+- Horarios disponibles: 10:00, 12:00, 15:00 y 17:00.
+- Para reservar, se necesita nombre completo, teléfono y opcionalmente email.
+- Las reservas están sujetas a disponibilidad.
+- La dirección exacta se proporciona al confirmar la reserva.
+- Si alguien no asiste a su reserva sin cancelar previamente, puede ser añadido a una lista de restricción.
+
+**Instrucciones para el proceso de reserva**:
+1. Cuando un usuario quiera reservar, pregúntale qué programa le interesa (Descanso Profundo, Concentración y Foco, o Creatividad).
+2. Después, pregúntale qué día le gustaría asistir (debe ser de martes a sábado).
+3. Muéstrale los horarios disponibles para ese día.
+4. Una vez seleccionado el horario, solicita su nombre completo y número de teléfono (el email es opcional).
+5. Pídele confirmación de los datos y completa la reserva.
+6. Proporciona la dirección exacta y las instrucciones para llegar solo cuando la reserva esté confirmada.
 
 **Reglas de conversación**:
 
@@ -103,7 +128,8 @@ Los usuarios pueden experimentar estados meditativos profundos, alivio del dolor
 6. Si el usuario muestra interés, anímalo a reservar una sesión, pero no le des todos los detalles de los programas de una vez. Pregunta: "¿Hay algún área específica en la que le gustaría trabajar: descanso, concentración o creatividad?" Y luego explica el programa correspondiente.
 
 7. Cuando alguien pregunte por disponibilidad u horarios:
-   - Informa que solo hay 4 horas disponibles al día
+   - Informa que tenemos sesiones de martes a sábado
+   - Horarios disponibles: 10:00, 12:00, 15:00 y 17:00
    - Cada sesión dura exactamente 40 minutos
    - Es necesario hacer una reserva previa
    - Consulta qué programa les interesa más: Descanso Profundo, Concentración y Foco, o Creatividad
@@ -120,10 +146,93 @@ Los usuarios pueden experimentar estados meditativos profundos, alivio del dolor
 
 10. Tu objetivo principal es que el usuario tome una hora para una sesión, entonces prioriza explicar los beneficios y la experiencia única que ofrece QuantumVibe, pero hazlo de forma conversacional y gradual.
 
+11. **Para reservas confirmadas**:
+   - Una vez confirmada la reserva, proporciona la siguiente dirección exacta: "La dirección es Calle José Victorino Lastarria 94, local 5, Santiago, a pasos de Metro Baquedano."
+   - Indícale que debe llegar 5 minutos antes de la hora reservada
+   - Recuérdale que debe llamar al llegar al +56 9 4729 5678
+
 **Recuerda**: Tu objetivo es inspirar a los usuarios a interesarse en Cápsulas QuantumVibe y tomar una hora para una sesión, pero entregando la información de manera pausada, según lo que el usuario quiera explorar. NO des toda la información de una vez, sino que permite que la conversación fluya naturalmente.`;
 
-
 const initialAssistantMessage = '¡Saludos! Soy tu guía en Cápsulas QuantumVibe. 🌟 Te puedo contar sobre nuestra experiencia transformadora que combina sonido, frecuencias y vibraciones. ¿Qué te gustaría conocer primero: cómo funciona la experiencia, los beneficios que ofrece, o los distintos programas disponibles?';
+
+// Rutas API para Supabase
+app.get('/api/disponibilidad', async (req, res) => {
+  try {
+    const fecha = req.query.fecha ? new Date(req.query.fecha) : new Date();
+    const disponibilidad = await supabaseClient.consultarDisponibilidad(fecha);
+    res.json(disponibilidad);
+  } catch (error) {
+    console.error('Error al consultar disponibilidad:', error);
+    res.status(500).json({ error: 'Error al consultar disponibilidad' });
+  }
+});
+
+app.get('/api/fechas-disponibles', async (req, res) => {
+  try {
+    const fechas = await supabaseClient.obtenerProximasFechasDisponibles();
+    res.json(fechas);
+  } catch (error) {
+    console.error('Error al obtener fechas disponibles:', error);
+    res.status(500).json({ error: 'Error al obtener fechas disponibles' });
+  }
+});
+
+app.post('/api/reserva', async (req, res) => {
+  try {
+    const resultado = await supabaseClient.crearReserva(req.body);
+    res.json(resultado);
+  } catch (error) {
+    console.error('Error al crear reserva:', error);
+    res.status(500).json({ error: 'Error al crear reserva' });
+  }
+});
+
+// Middleware para procesar intenciones de reserva
+const procesarIntencionReserva = async (mensaje, sessionId) => {
+  // Verificar si el mensaje indica intención de reserva
+  const patrones = [
+    /\b(reservar|reserva|agendar|agenda|tomar|sacar)\b.*\b(hora|sesion|cita)\b/i,
+    /\b(quiero|me.gustaría|puedo)\b.*\b(reservar|agendar|tomar)\b/i,
+    /\bcomo\b.*\b(tomo|reservo|agendo)\b/i
+  ];
+  
+  const esIntencionReserva = patrones.some(patron => patron.test(mensaje));
+  
+  if (esIntencionReserva) {
+    // Iniciar proceso de reserva si no existe
+    if (!reservationStates[sessionId]) {
+      reservationStates[sessionId] = {
+        paso: 'inicio',
+        programa: null,
+        fecha: null,
+        hora: null,
+        nombre: null,
+        telefono: null,
+        email: null
+      };
+      
+      // Obtener fechas disponibles para los próximos días
+      const fechasDisponibles = await supabaseClient.obtenerProximasFechasDisponibles();
+      
+      if (fechasDisponibles.length === 0) {
+        return {
+          mensajePersonalizado: "Lo siento, no hay horarios disponibles en los próximos días. Por favor, intenta más adelante o contacta directamente a nuestro equipo para opciones especiales."
+        };
+      }
+      
+      // Formatear fechas disponibles para mostrar
+      const fechasFormateadas = fechasDisponibles.slice(0, 5).map(f => {
+        return `- ${supabaseClient.formatearFecha(f.fecha)} a las ${f.horarios.map(h => h.hora.substring(0, 5)).join(', ')}`;
+      }).join('\n');
+      
+      return {
+        mensajePersonalizado: `¡Excelente elección! Puedes programar tu hora en Cápsulas QuantumVibe de varias maneras: **Reserva en línea** Puedes reservar tu hora en nuestro sitio web, en la sección "Reserva". Simplemente selecciona el día y la hora que prefieres, y proporciona tus datos personales. **Llamada o WhatsApp** Puedes llamar o enviar un WhatsApp a nuestro número de contacto (94 1234 5678) y pedir una hora disponible. Nuestro equipo estará encantado de asistirte. **Correos electrónicos** Puedes enviar un correo electrónico a info@quantumvibe.com con el título "Reserva de hora" y proporciona tus datos personales y la hora que prefieres. **Presencialmente** Puedes visitarnos en persona en nuestra ubicación en Metro Baquedano, Providencia, Chile, y pedir una hora disponible en nuestro mostrador. Nuestro equipo estará encantado de asistirte. Recuerda que es importante tener en cuenta que las horas de sesión pueden variar dependiendo de la demanda y la disponibilidad. ¡Esperamos verte pronto!`
+      };
+    }
+  }
+  
+  return null;
+};
 
 app.post('/chat', async (req, res) => {
   try {
@@ -138,6 +247,7 @@ app.post('/chat', async (req, res) => {
       return res.status(500).json({ error: 'Error de configuración del servidor: La API key de Groq no está configurada.' });
     }
 
+    // Iniciar conversación si no existe
     if (!conversations[sessionId]) {
       conversations[sessionId] = [
         { role: 'system', content: systemPrompt },
@@ -145,7 +255,17 @@ app.post('/chat', async (req, res) => {
       ];
     }
 
+    // Agregar mensaje del usuario
     conversations[sessionId].push({ role: 'user', content: message });
+
+    // Procesar intención de reserva
+    const intencionReserva = await procesarIntencionReserva(message, sessionId);
+    
+    if (intencionReserva && intencionReserva.mensajePersonalizado) {
+      // Usar mensaje personalizado en lugar de llamar a la API
+      conversations[sessionId].push({ role: 'assistant', content: intencionReserva.mensajePersonalizado });
+      return res.json({ reply: intencionReserva.mensajePersonalizado });
+    }
 
     // Limitar el historial de conversación a los últimos 10 mensajes
     const messagesToSend = conversations[sessionId].slice(-10);
