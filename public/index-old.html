@@ -1,0 +1,380 @@
+<script type="text/javascript">
+        var gk_isXlsx = false;
+        var gk_xlsxFileLookup = {};
+        var gk_fileData = {};
+        function filledCell(cell) {
+          return cell !== '' && cell != null;
+        }
+        function loadFileData(filename) {
+        if (gk_isXlsx && gk_xlsxFileLookup[filename]) {
+            try {
+                var workbook = XLSX.read(gk_fileData[filename], { type: 'base64' });
+                var firstSheetName = workbook.SheetNames[0];
+                var worksheet = workbook.Sheets[firstSheetName];
+
+                // Convert sheet to JSON to filter blank rows
+                var jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, blankrows: false, defval: '' });
+                // Filter out blank rows (rows where all cells are empty, null, or undefined)
+                var filteredData = jsonData.filter(row => row.some(filledCell));
+
+                // Heuristic to find the header row by ignoring rows with fewer filled cells than the next row
+                var headerRowIndex = filteredData.findIndex((row, index) =>
+                  row.filter(filledCell).length >= filteredData[index + 1]?.filter(filledCell).length
+                );
+                // Fallback
+                if (headerRowIndex === -1 || headerRowIndex > 25) {
+                  headerRowIndex = 0;
+                }
+
+                // Convert filtered JSON back to CSV
+                var csv = XLSX.utils.aoa_to_sheet(filteredData.slice(headerRowIndex)); // Create a new sheet from filtered array of arrays
+                csv = XLSX.utils.sheet_to_csv(csv, { header: 1 });
+                return csv;
+            } catch (e) {
+                console.error(e);
+                return "";
+            }
+        }
+        return gk_fileData[filename] || "";
+        }
+        </script><!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cápsulas QuantumVibe: Tu Portal a la 5D</title>
+    <style>
+        body {
+            font-family: 'Arial', sans-serif;
+            background: linear-gradient(135deg, #0f0c29, #302b63, #24243e);
+            color: #e0e0e0;
+            margin: 0;
+            padding: 0;
+            overflow-x: hidden;
+        }
+        header {
+            text-align: center;
+            padding: 100px 20px;
+            background: rgba(0, 0, 0, 0.7);
+            position: relative;
+            border-bottom: 2px solid #8b5cf6;
+        }
+        header h1 {
+            font-size: 3.5em;
+            color: #8b5cf6;
+            text-shadow: 0 0 20px rgba(139, 92, 246, 0.8);
+            margin: 0;
+        }
+        header p {
+            font-size: 1.5em;
+            color: #b0b0b0;
+            margin-top: 15px;
+        }
+        .capsule-bg {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: url('https://images.unsplash.com/photo-1614853316476-de3b4b2262a5?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w2MjU2MDl8MHwxfHNlYXJjaHwxfHxtYW5kYWxhfGVufDB8fHx8MTcyNTM3NzgxOHww&ixlib=rb-4.0.3&q=80&w=400') no-repeat center;
+            background-size: cover;
+            opacity: 0.15;
+            z-index: -1;
+        }
+        section {
+            max-width: 1000px;
+            margin: 60px auto;
+            padding: 50px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 20px;
+            box-shadow: 0 8px 30px rgba(0, 0, 0, 0.4);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(139, 92, 246, 0.3);
+        }
+        h2 {
+            color: #8b5cf6;
+            font-size: 2.5em;
+            margin-bottom: 30px;
+            text-shadow: 0 0 10px rgba(139, 92, 246, 0.5);
+        }
+        p, ul {
+            font-size: 1.3em;
+            line-height: 1.9;
+            color: #d0d0d0;
+        }
+        .highlight {
+            font-size: 1.5em;
+            font-weight: bold;
+            color: #ec4899;
+            text-shadow: 0 0 5px rgba(236, 72, 153, 0.7);
+            margin: 20px 0;
+        }
+        .web3-button {
+            background: linear-gradient(45deg, #8b5cf6, #ec4899);
+            color: white;
+            padding: 20px 40px;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            font-size: 1.5em;
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+        .web3-button:hover {
+            transform: scale(1.1);
+            box-shadow: 0 0 25px rgba(139, 92, 246, 0.7);
+        }
+        footer {
+            text-align: center;
+            padding: 40px;
+            background: rgba(0, 0, 0, 0.8);
+            color: #b0b0b0;
+            margin-top: 80px;
+            border-top: 2px solid #8b5cf6;
+        }
+        .chat-container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+        .chat-header {
+            background: #1a73e8;
+            color: white;
+            padding: 15px;
+            text-align: center;
+        }
+        .chat-messages {
+            height: 400px;
+            overflow-y: auto;
+            padding: 20px;
+        }
+        .message {
+            margin-bottom: 15px;
+            padding: 10px;
+            border-radius: 10px;
+            max-width: 80%;
+        }
+        .user-message {
+            background: #e3f2fd;
+            margin-left: auto;
+        }
+        .bot-message {
+            background: #f5f5f5;
+        }
+        .chat-input {
+            display: flex;
+            padding: 20px;
+            border-top: 1px solid #eee;
+        }
+        input[type="text"] {
+            flex: 1;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            margin-right: 10px;
+        }
+        button {
+            padding: 10px 20px;
+            background: #1a73e8;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        button:hover {
+            background: #1557b0;
+        }
+        .loading {
+            display: none;
+            text-align: center;
+            padding: 10px;
+        }
+        .loading::after {
+            content: '...';
+            animation: dots 1.5s steps(4, end) infinite;
+        }
+        @keyframes dots {
+            0%, 20% { content: '.'; }
+            40% { content: '..'; }
+            60% { content: '...'; }
+            80%, 100% { content: ''; }
+        }
+        .message a {
+            color: #1a73e8;
+            text-decoration: none;
+            word-break: break-all;
+        }
+        .message a:hover {
+            text-decoration: underline;
+        }
+        .message .whatsapp-link {
+            display: inline-block;
+            background: #25D366;
+            color: white;
+            padding: 10px 20px;
+            border-radius: 25px;
+            text-decoration: none;
+            margin: 8px 0;
+            transition: all 0.3s ease;
+            font-weight: bold;
+            box-shadow: 0 2px 5px rgba(37, 211, 102, 0.3);
+        }
+        .message .whatsapp-link:hover {
+            background: #128C7E;
+            text-decoration: none;
+            box-shadow: 0 4px 8px rgba(37, 211, 102, 0.4);
+            transform: translateY(-1px);
+        }
+        .message .product-link {
+            display: inline-block;
+            background: #f8f9fa;
+            border: 1px solid #e0e0e0;
+            padding: 8px 12px;
+            border-radius: 8px;
+            margin: 3px 0;
+            transition: all 0.3s;
+        }
+        .message .product-link:hover {
+            background: #e3f2fd;
+            border-color: #1a73e8;
+            text-decoration: none;
+        }
+        .message .whatsapp-contact {
+            display: inline-block;
+            font-weight: 600;
+            color: #128C7E;
+            padding: 4px 8px;
+            background: #e8f5e9;
+            border-radius: 8px;
+            margin: 2px 0;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="capsule-bg"></div>
+        <h1>Cápsulas QuantumVibe</h1>
+        <p>Experimenta un cambio más que socioeconómico, sino energético vibracional.</p>
+    </header>
+
+    <section id="experiencia">
+        <h2>¿Qué son las Cápsulas QuantumVibe?</h2>
+        <p class="highlight">Terapia cuántica: Auto reparate, Auto regenerate</p>
+        <p>Las cápsulas QuantumVibe son espacios físicos donde te sumerges en una experiencia transformadora. Al entrar, eres envuelto por sonido, frecuencia, vibración y luz, diseñados para armonizar tu energía, promover la autoreparación y autoregeneración, y elevar tu vibración a niveles superiores. Esta combinación única de estímulos sensoriales te permite experimentar un cambio profundo a nivel energético y vibracional, alineándote con tu esencia divina.</p>
+    </section>
+
+    <section id="ascension-5d">
+        <h2>Tu Viaje a la 5D</h2>
+        <p class="highlight">Manifiesta los cambios, sube la vibración</p>
+        <p>Al entrar en la cápsula, te conviertes en parte de un portal hacia la quinta dimensión. El sonido y la luz trabajan en sincronía para expandir tu conciencia, permitiéndote manifestar cambios en tu vida y conectar con tu ser interior. Esta experiencia te invita a subir tu vibración y a recordar que somos seres divinos con un potencial ilimitado.</p>
+    </section>
+
+    <section id="beneficios">
+        <h2>Beneficios de Entrar en la Cápsula</h2>
+        <ul>
+            <li>Alivio inmediato del estrés y la tensión muscular, contribuyendo a una mejor salud articular y reduciendo dolores físicos.</li>
+            <li>Mejora en la consolidación de la memoria y la retención de información, ideal para el aprendizaje y la productividad diaria.</li>
+            <li>Reducción de la distracción interna, permitiendo una mayor focalización y claridad mental.</li>
+            <li>Elevación de la vibración energética, facilitando la conexión con dimensiones superiores y la ascensión espiritual.</li>
+            <li>Armonización holística de cuerpo, mente y espíritu, promoviendo un estado de bienestar integral.</li>
+        </ul>
+        <p class="highlight">Somos seres divinos</p>
+        <p>Dentro de la cápsula, redescubres tu naturaleza divina y desbloqueas tu potencial para manifestar una vida alineada con tu propósito más elevado.</p>
+    </section>
+
+    <section id="reserva">
+        <h2>Reserva tu Sesión con nuestro chatbot</h2>
+        <p>Utilizamos tecnologías avanzadas para garantizar una experiencia segura y transparente.<br>Reserva tu turno para entrar en la cápsula y comienza tu ascensión a la 5D.</p>
+
+        <div class="chat-container">
+            <div class="chat-header">
+                <h1>Chatbot QuantumVibe</h1>
+            </div>
+            <div class="chat-messages" id="chatMessages">
+                <div class="message bot-message">
+                    Hola 👋 ¿Cómo te puedo ayudar hoy?
+                </div>
+            </div>
+            <div class="loading" id="loading">Pensando</div>
+            <div class="chat-input">
+                <input type="text" id="userInput" placeholder="Escribe tu mensaje aquí...">
+                <button onclick="sendMessage()">Enviar</button>
+            </div>
+        </div>
+
+
+    </section>
+
+   
+
+    <script>
+        const sessionId = 'session-' + Math.random().toString(36).substr(2, 9);
+        const chatMessages = document.getElementById('chatMessages');
+        const userInput = document.getElementById('userInput');
+        const loading = document.getElementById('loading');
+
+        userInput.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                sendMessage();
+            }
+        });
+
+        async function sendMessage() {
+            const message = userInput.value.trim();
+            if (!message) return;
+
+            // Añadir mensaje del usuario
+            appendMessage(message, 'user');
+            userInput.value = '';
+            loading.style.display = 'block';
+
+            try {
+                const response = await fetch('/chat', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        message: message,
+                        sessionId: sessionId
+                    })
+                });
+
+                const data = await response.json();
+                
+                if (data.error) {
+                    throw new Error(data.error);
+                }
+
+                // Añadir respuesta del bot
+                appendMessage(data.reply, 'bot');
+            } catch (error) {
+                console.error('Error:', error);
+                appendMessage('Lo siento, hubo un error al procesar tu mensaje. Por favor, intenta de nuevo.', 'bot');
+            } finally {
+                loading.style.display = 'none';
+            }
+        }
+
+        function appendMessage(message, sender) {
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message ${sender}-message`;
+            
+            // Permitir enlaces clickeables en las respuestas del bot
+            if (sender === 'bot') {
+                // Convertir enlaces de formato markdown [texto](url) a HTML
+                const markdownLinkRegex = /\[([^\]]+)\]\(([^)]+)\)/g;
+                const messageWithLinks = message.replace(markdownLinkRegex, '<a href="$2" target="_blank">$1</a>');
+                messageDiv.innerHTML = messageWithLinks;
+            } else {
+                messageDiv.textContent = message;
+            }
+            
+            chatMessages.appendChild(messageDiv);
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        }
+    </script>
+</body>
+</html>
