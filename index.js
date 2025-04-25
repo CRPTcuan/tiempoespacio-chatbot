@@ -234,247 +234,212 @@ app.get('/keep-alive', (req, res) => {
   res.status(200).json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
-// Middleware para procesar intenciones de reserva
-const procesarIntencionReserva = async (mensaje, sessionId) => {
-  // Inicializar el estado de la reserva si no existe
-  if (!reservationStates[sessionId]) {
-    reservationStates[sessionId] = {
-      paso: 'inicio',
-      fecha: null,
-      hora: null,
-      nombre: null,
-      telefono: null,
-      email: null
-    };
-  }
-
-  console.log(`[${new Date().toISOString()}] Procesando intención (${sessionId}): "${mensaje}" - Estado actual: ${reservationStates[sessionId].paso}`);
-  
-  // Verificar si el mensaje indica intención de reserva
-  const patrones = [
-    /\b(reservar|reserva|agendar|agenda|tomar|sacar)\b.*\b(hora|sesion|cita|turno)\b/i,
-    /\b(quiero|me.gustaría|puedo|necesito)\b.*\b(reservar|agendar|tomar|hora|cita|sesión|turno|espacio)\b/i,
-    /\bcomo\b.*\b(tomo|reservo|agendo)\b/i,
-    /\b(disponibilidad|horarios|horas|días|fechas)\b/i,
-    /\b(hora|cita|turno|reserva)\b/i
-  ];
-  
-  const esIntencionReserva = patrones.some(patron => patron.test(mensaje));
-  
-  console.log(`[${new Date().toISOString()}] ¿Es intención de reserva? ${esIntencionReserva}`);
-  
-  // Si el usuario tiene un estado de reserva en proceso, continuamos procesando independientemente del mensaje
-  if (esIntencionReserva || reservationStates[sessionId].paso !== 'inicio') {
-    // Si estamos iniciando el proceso de reserva
-    if (reservationStates[sessionId].paso === 'inicio') {
-      console.log(`[${new Date().toISOString()}] Iniciando proceso de reserva para ${sessionId}`);
-      
-      // Obtener fechas disponibles para los próximos días
-      const fechasDisponibles = await reservasManager.obtenerProximasFechasDisponibles();
-      
-      if (fechasDisponibles.length === 0) {
-        return {
-          mensajePersonalizado: "Lo siento, no hay horarios disponibles en los próximos días. Por favor, intenta más adelante o contacta directamente a nuestro equipo para opciones especiales."
-        };
-      }
-      
-      // Formatear fechas disponibles para mostrar de manera más clara
-      let mensajeFechas = "Tenemos disponibilidad en los siguientes días:\n\n";
-      
-      fechasDisponibles.slice(0, 5).forEach(fechaInfo => {
-        const fechaFormateada = reservasManager.formatearFecha(fechaInfo.fecha);
-        mensajeFechas += `📅 ${fechaFormateada}:\n`;
-        
-        // Recomendar solo algunos horarios por día (máximo 3)
-        const horariosRecomendados = fechaInfo.horarios.slice(0, 3);
-        
-        horariosRecomendados.forEach(h => {
-          mensajeFechas += `   ⏰ ${h.hora}\n`;
-        });
-        
-        if (fechaInfo.horarios.length > 3) {
-          mensajeFechas += `   (y ${fechaInfo.horarios.length - 3} horarios más disponibles)\n`;
-        }
-        
-        mensajeFechas += "\n";
-      });
-      
-      mensajeFechas += "Para reservar, necesito que me indiques:\n\n";
-      mensajeFechas += "1️⃣ Fecha deseada (ejemplo: 'el jueves 20')\n";
-      mensajeFechas += "2️⃣ Hora (ejemplo: '10:00')\n";
-      mensajeFechas += "3️⃣ Tu nombre completo\n";
-      mensajeFechas += "4️⃣ Tu correo electrónico\n";
-      mensajeFechas += "5️⃣ Número de teléfono\n";
-      
-      mensajeFechas += "\nRecuerda que no es posible reservar para el mismo día.";
-      
-      // Antes de retornar, veamos si ya hay información en el mensaje actual
-      
-      // Buscar día de la semana en el mensaje (lunes, martes, etc.)
-      const diasSemana = {
-        'lunes': 1, 'martes': 2, 'miércoles': 3, 'miercoles': 3, 
-        'jueves': 4, 'viernes': 5, 'sábado': 6, 'sabado': 6, 'domingo': 0
-      };
-      
-      const diaPattern = new RegExp('\\b(' + Object.keys(diasSemana).join('|') + ')\\b', 'i');
-      const diaMatch = mensaje.match(diaPattern);
-      
-      if (diaMatch) {
-        const diaMencionado = diaMatch[1].toLowerCase().replace('miercoles', 'miércoles').replace('sabado', 'sábado');
-        const diaNumerico = diasSemana[diaMencionado];
-        
-        // Calcular próxima fecha con ese día de la semana
-        const hoy = new Date();
-        const diaSemanaHoy = hoy.getDay(); // 0 = domingo, 1 = lunes, ...
-        
-        // Calcular días hasta el próximo día mencionado
-        let diasParaSumar = (diaNumerico + 7 - diaSemanaHoy) % 7;
-        if (diasParaSumar === 0) diasParaSumar = 7; // Si es el mismo día, ir a la próxima semana
-        
-        const fechaProxima = new Date(hoy);
-        fechaProxima.setDate(hoy.getDate() + diasParaSumar);
-        
-        reservationStates[sessionId].fecha = fechaProxima.toISOString().split('T')[0];
-        console.log(`[${new Date().toISOString()}] Detectado día de la semana: ${diaMencionado} (${reservationStates[sessionId].fecha})`);
-      }
-      
-      // Buscar hora en el mensaje (10:00, a las 3, etc.)
-      const horaExplicita = mensaje.match(/\b(10:00|12:00|15:00|17:00)\b/);
-      const hora10 = mensaje.match(/\b10\b|\ba las 10\b|\blas 10\b/i);
-      const hora12 = mensaje.match(/\b12\b|\ba las 12\b|\blas 12\b|\bmediodía\b|\bmediodia\b/i);
-      const hora3 = mensaje.match(/\b3\b|\ba las 3\b|\blas 3\b|\b15\b|\b15:00\b|\b3 de la tarde\b|\b3pm\b/i);
-      const hora5 = mensaje.match(/\b5\b|\ba las 5\b|\blas 5\b|\b17\b|\b17:00\b|\b5 de la tarde\b|\b5pm\b/i);
-      
-      if (horaExplicita) {
-        reservationStates[sessionId].hora = horaExplicita[1];
-        console.log(`[${new Date().toISOString()}] Detectada hora explícita: ${reservationStates[sessionId].hora}`);
-      } else if (hora10) {
-        reservationStates[sessionId].hora = '10:00';
-        console.log(`[${new Date().toISOString()}] Detectada hora: 10:00`);
-      } else if (hora12) {
-        reservationStates[sessionId].hora = '12:00';
-        console.log(`[${new Date().toISOString()}] Detectada hora: 12:00`);
-      } else if (hora3) {
-        reservationStates[sessionId].hora = '15:00';
-        console.log(`[${new Date().toISOString()}] Detectada hora: 15:00`);
-      } else if (hora5) {
-        reservationStates[sessionId].hora = '17:00';
-        console.log(`[${new Date().toISOString()}] Detectada hora: 17:00`);
-      }
-      
-      // Si ya tenemos fecha y hora, avanzar directamente al siguiente paso
-      if (reservationStates[sessionId].fecha && reservationStates[sessionId].hora) {
-        reservationStates[sessionId].paso = 'datos_personales';
-        
-        const fechaFormateada = new Date(reservationStates[sessionId].fecha)
-          .toLocaleDateString('es-ES', { 
-            weekday: 'long', 
-            year: 'numeric', 
-            month: 'long', 
-            day: 'numeric' 
-          });
-        
-        return {
-          mensajePersonalizado: `¡Excelente elección! Has seleccionado una sesión para el ${fechaFormateada} a las ${reservationStates[sessionId].hora}.\n\nAhora necesito tus datos personales.\n\nPor favor, indícame:\n\n1️⃣ Tu nombre completo\n2️⃣ Tu correo electrónico\n3️⃣ Tu número de teléfono`
-        };
-      }
-      
+// Función para obtener fechas disponibles en formato para mostrar al usuario
+async function obtenerFechasDisponiblesFormateadas(diasAMostrar = 10) {
+  try {
+    console.log(`[${new Date().toISOString()}] Obteniendo próximas fechas disponibles (${diasAMostrar} días)`);
+    
+    // Obtener fechas disponibles desde el gestor de reservas
+    const fechasDisponibles = await reservasManager.obtenerProximasFechasDisponibles(diasAMostrar);
+    
+    if (!fechasDisponibles || fechasDisponibles.length === 0) {
+      console.log(`[${new Date().toISOString()}] No se encontraron fechas disponibles`);
+      return [];
+    }
+    
+    // Convertir la estructura de datos para que sea más fácil de usar en el chat
+    const fechasFormateadas = fechasDisponibles.map(dia => {
       return {
-        mensajePersonalizado: mensajeFechas
+        fecha: dia.fecha,
+        horasDisponibles: dia.horarios
+          .filter(h => h.disponible)
+          .map(h => h.hora)
       };
-    } else if (reservationStates[sessionId].paso === 'datos_personales') {
-      // Extraer posible nombre, email y teléfono
+    });
+    
+    console.log(`[${new Date().toISOString()}] Encontradas ${fechasFormateadas.length} fechas disponibles`);
+    return fechasFormateadas;
+  } catch (error) {
+    console.error(`[${new Date().toISOString()}] Error al obtener fechas disponibles:`, error);
+    return [];
+  }
+}
+
+// Middleware para procesar intenciones de reserva
+async function procesarIntencionReserva(mensaje, sessionId) {
+  console.log(`[${new Date().toISOString()}] Procesando intención de reserva para: "${mensaje}" (sessionId: ${sessionId})`);
+  
+  // Logs del estado actual de la reserva
+  if (reservationStates[sessionId]) {
+    console.log(`[${new Date().toISOString()}] Estado actual de reserva:`, JSON.stringify(reservationStates[sessionId]));
+  } else {
+    console.log(`[${new Date().toISOString()}] No hay estado de reserva para esta sesión`);
+    reservationStates[sessionId] = {};
+  }
+  
+  const patrones = [
+    /\b(reservar?|agendar?|cita|turno|horario|disponibilidad|cuando hay|cuando (?:tienen|tienes))\b/i,
+    /\b(cuándo|cuando|que dias|qué días|horarios?)\b/i,
+    /\b(capsula|capsulas|quantumvibe|terapia)\b/i
+  ];
+
+  const tieneIntencionReserva = patrones.some(patron => patron.test(mensaje));
+  
+  // Si ya tenemos fecha y hora, avanzar automáticamente para completar la reserva
+  if (reservationStates[sessionId].fecha && reservationStates[sessionId].hora) {
+    console.log(`[${new Date().toISOString()}] Ya tenemos fecha y hora, avanzando al siguiente paso`);
+    
+    // Analizar si el mensaje contiene datos de contacto
+    if (!reservationStates[sessionId].nombre) {
+      // Intentar extraer nombre, correo y teléfono del mensaje
+      const nombrePattern = /(?:me\s+llamo|soy|nombre\s+es|nombre:)\s+([A-Za-zÁáÉéÍíÓóÚúÑñ\s]+)(?:\s*,|\s+y|\s+mi|\s+con|\b)/i;
+      const correoPattern = /(?:correo|email|mail|e-mail)(?:\s+es|\s*:\s*|\s+)([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/i;
+      const telefonoPattern = /(?:teléfono|telefono|celular|móvil|movil|tel|fono)(?:\s+es|\s*:\s*|\s+)((?:\+?56|0)?\s*9?\s*[0-9\s]{8,})/i;
       
-      // Patrón simple para detectar nombres (2+ palabras)
-      const nombrePattern = /\b([A-Za-zÀ-ÖØ-öø-ÿ]+(?:\s+[A-Za-zÀ-ÖØ-öø-ÿ]+)+)\b/;
       const nombreMatch = mensaje.match(nombrePattern);
-      
-      // Patrón para teléfonos chilenos (+569XXXXXXXX o 9XXXXXXXX)
-      const telefonoPattern = /(?:\+?56\s?9|9)\s?\d{4}\s?\d{4}/;
+      const correoMatch = mensaje.match(correoPattern);
       const telefonoMatch = mensaje.match(telefonoPattern);
       
-      // Patrón para correo electrónico
-      const emailPattern = /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b/;
-      const emailMatch = mensaje.match(emailPattern);
-      
-      // Guardar datos si fueron encontrados
-      if (nombreMatch && !reservationStates[sessionId].nombre) {
-        reservationStates[sessionId].nombre = nombreMatch[0];
-      }
-      
-      if (telefonoMatch && !reservationStates[sessionId].telefono) {
-        // Normalizar formato del teléfono
-        reservationStates[sessionId].telefono = telefonoMatch[0].replace(/\s+/g, '');
-        if (!reservationStates[sessionId].telefono.startsWith('+')) {
-          if (reservationStates[sessionId].telefono.startsWith('9')) {
-            reservationStates[sessionId].telefono = '+56' + reservationStates[sessionId].telefono;
-          }
+      // Si encontramos datos de contacto en el mensaje, guardarlos
+      if (nombreMatch) {
+        const nombreCompleto = nombreMatch[1].trim();
+        // Asegurarnos que sea un nombre válido (al menos 5 caracteres y dos palabras)
+        if (nombreCompleto.length >= 5 && nombreCompleto.includes(' ')) {
+          reservationStates[sessionId].nombre = nombreCompleto;
+          console.log(`[${new Date().toISOString()}] Nombre detectado: ${nombreCompleto}`);
         }
       }
       
-      if (emailMatch && !reservationStates[sessionId].email) {
-        reservationStates[sessionId].email = emailMatch[0];
+      if (correoMatch) {
+        const correo = correoMatch[1].trim();
+        reservationStates[sessionId].email = correo;
+        console.log(`[${new Date().toISOString()}] Correo detectado: ${correo}`);
       }
       
-      // Verificar si tenemos suficiente información
+      if (telefonoMatch) {
+        // Limpiar el teléfono (quitar espacios y asegurar formato)
+        let telefono = telefonoMatch[1].replace(/\s+/g, '');
+        // Asegurar formato +569XXXXXXXX o similar
+        if (!telefono.startsWith('+') && !telefono.startsWith('9')) {
+          telefono = '9' + telefono;
+        }
+        if (!telefono.includes('+56')) {
+          telefono = '+56' + telefono.replace(/^0+/, '');
+        }
+        
+        reservationStates[sessionId].telefono = telefono;
+        console.log(`[${new Date().toISOString()}] Teléfono detectado: ${telefono}`);
+      }
+      
+      // Si tenemos todos los datos, crear la reserva
       if (reservationStates[sessionId].nombre && 
-          reservationStates[sessionId].telefono && 
-          reservationStates[sessionId].email) {
-        reservationStates[sessionId].paso = 'confirmacion';
+          reservationStates[sessionId].email && 
+          reservationStates[sessionId].telefono) {
         
-        const fechaFormateada = new Date(reservationStates[sessionId].fecha)
-          .toLocaleDateString('es-ES', { 
-            weekday: 'long', 
-            year: 'numeric', 
-            month: 'long', 
-            day: 'numeric' 
+        // Intentar crear la reserva
+        try {
+          const resultado = await reservasManager.crearReserva({
+            fecha: reservationStates[sessionId].fecha,
+            hora: reservationStates[sessionId].hora,
+            nombre_cliente: reservationStates[sessionId].nombre,
+            email: reservationStates[sessionId].email,
+            telefono: reservationStates[sessionId].telefono
           });
-        
-        return {
-          mensajePersonalizado: `Por favor, confirma los siguientes datos para tu reserva:\n\n` +
-            `📅 Fecha: ${fechaFormateada}\n` +
-            `⏰ Hora: ${reservationStates[sessionId].hora}\n` +
-            `1️⃣ Nombre: ${reservationStates[sessionId].nombre}\n` +
-            `2️⃣ Correo electrónico: ${reservationStates[sessionId].email}\n` +
-            `3️⃣ Número de teléfono: ${reservationStates[sessionId].telefono}`
-        };
-      } else {
-        let mensajeFaltante = "Para completar la reserva, necesitamos algunos datos más. Por favor, indícame:\n\n1️⃣ Tu nombre completo\n2️⃣ Tu correo electrónico\n3️⃣ Tu número de teléfono\n\nSi ya tienes estos datos, por favor, confírmalos. Si no, por favor, proporcionármelos para que podamos continuar con tu reserva.";
-        
-        return {
-          mensajePersonalizado: mensajeFaltante
-        };
+          
+          if (resultado.exito) {
+            // Resetear el estado de reserva después de crearla exitosamente
+            delete reservationStates[sessionId];
+            
+            return {
+              mensajePersonalizado: `¡Reserva confirmada! Hemos agendado tu sesión para el ${formatearFecha(resultado.fecha)} a las ${resultado.hora}. Te hemos enviado un correo de confirmación a ${resultado.email} con todos los detalles. ¡Esperamos recibirte pronto!`
+            };
+          } else {
+            return {
+              mensajePersonalizado: `Lo siento, ha ocurrido un error al crear tu reserva: ${resultado.mensaje}. Por favor, intenta nuevamente o contáctanos directamente por teléfono.`
+            };
+          }
+        } catch (error) {
+          console.error('Error al crear la reserva:', error);
+          return {
+            mensajePersonalizado: `Lo siento, ha ocurrido un error inesperado al procesar tu reserva. Por favor, intenta nuevamente o contáctanos directamente al +56947295678.`
+          };
+        }
       }
-    } else if (reservationStates[sessionId].paso === 'confirmacion') {
-      // Procesar la confirmación de la reserva
-      const confirmacion = mensaje.toLowerCase().includes('confirmo');
-      if (confirmacion) {
-        const fechaFormateada = new Date(reservationStates[sessionId].fecha)
-          .toLocaleDateString('es-ES', { 
-            weekday: 'long', 
-            year: 'numeric', 
-            month: 'long', 
-            day: 'numeric' 
-          });
-        
-        return {
-          mensajePersonalizado: `¡Gracias por confirmar tu reserva! Te esperamos el ${fechaFormateada} a las ${reservationStates[sessionId].hora} en nuestras Cápsulas QuantumVibe. ¡Te esperamos con mucho entusiasmo!`
-        };
-      } else {
-        let mensajeFaltante = `Por favor, confirma tu reserva para continuar. ¿Estás seguro de que quieres reservar una sesión en Cápsulas QuantumVibe el ${fechaFormateada} a las ${reservationStates[sessionId].hora}?`;
-        
-        return {
-          mensajePersonalizado: mensajeFaltante
-        };
+      
+      // Si no tenemos todos los datos, solicitar los que faltan
+      let datosRequeridos = [];
+      if (!reservationStates[sessionId].nombre) datosRequeridos.push("nombre completo");
+      if (!reservationStates[sessionId].email) datosRequeridos.push("correo electrónico");
+      if (!reservationStates[sessionId].telefono) datosRequeridos.push("número de teléfono");
+      
+      // Si detectamos algunos datos pero no todos, personalizar el mensaje
+      if (datosRequeridos.length > 0) {
+        return `¡Perfecto! Tengo una reserva para el ${formatearFecha(reservationStates[sessionId].fecha)} a las ${reservationStates[sessionId].hora}. Para completar la reserva, necesito: ${datosRequeridos.join(", ")}.`;
       }
+      
+      // Si no detectamos ningún dato, mostrar el mensaje completo de solicitud
+      return `¡Perfecto! Tengo una reserva para el ${formatearFecha(reservationStates[sessionId].fecha)} a las ${reservationStates[sessionId].hora}. Para completar la reserva, por favor proporciónanos:
+      
+✨ Tu nombre completo
+✨ Tu correo electrónico
+✨ Tu número de teléfono
+
+Ejemplo: "Me llamo Juan Pérez, mi correo es juan@example.com y mi teléfono es 6123456789"`;
+    }
+    // Si ya tenemos nombre, intentar completar la reserva
+    else {
+      // Aquí podríamos añadir más lógica para avanzar en los siguientes pasos
+      return `Gracias ${reservationStates[sessionId].nombre}, estamos procesando tu reserva para el ${formatearFecha(reservationStates[sessionId].fecha)} a las ${reservationStates[sessionId].hora}. Te enviaremos una confirmación por correo electrónico.`;
     }
   }
   
-  // Si llegamos aquí, es porque no se procesó ninguna intención específica
-  console.log(`[${new Date().toISOString()}] No se procesó ninguna intención específica para el mensaje: "${mensaje}"`);
+  // Verificar si estamos buscando disponibilidad
+  if (tieneIntencionReserva || mensaje.toLowerCase().includes('disponib') || mensaje.toLowerCase().includes('reserv')) {
+    console.log(`[${new Date().toISOString()}] Detectada intención de reserva`);
+    
+    // Obtener próximos días disponibles
+    const fechasDisponibles = await obtenerFechasDisponiblesFormateadas(10); // Próximos 10 días disponibles
+    
+    if (fechasDisponibles.length === 0) {
+      return "Lo siento, no tenemos horarios disponibles en los próximos días. Por favor, intenta más adelante.";
+    }
+    
+    // Formatear las fechas disponibles de manera más visual y organizada
+    let respuesta = `✨ **Horarios Disponibles** ✨\n\n`;
+    
+    fechasDisponibles.forEach(dia => {
+      const fecha = new Date(dia.fecha);
+      const nombreDia = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'][fecha.getDay()];
+      const fechaFormateada = `${fecha.getDate()}/${fecha.getMonth() + 1}/${fecha.getFullYear()}`;
+      
+      // Formatear las horas disponibles para ese día
+      const horasDisponibles = dia.horasDisponibles.map(hora => hora).join(' | ');
+      
+      respuesta += `📅 **${nombreDia} ${fechaFormateada}**\n`;
+      respuesta += `⏰ ${horasDisponibles}\n\n`;
+    });
+    
+    respuesta += `Para reservar, indícame el día y la hora que prefieras. Por ejemplo: "Quiero reservar el martes a las 10:00".\n\nNecesitaré tu nombre, correo electrónico y teléfono para completar la reserva.`;
+    
+    return respuesta;
+  }
   
+  // Si llegamos aquí, no hay intención clara de reserva
   return null;
-};
+}
+
+// Función para formatear la fecha en formato legible
+function formatearFecha(fechaISO) {
+  const fecha = new Date(fechaISO);
+  const diasSemana = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
+  const meses = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
+  
+  const diaSemana = diasSemana[fecha.getDay()];
+  const dia = fecha.getDate();
+  const mes = meses[fecha.getMonth()];
+  
+  return `${diaSemana} ${dia} de ${mes}`;
+}
 
 // Ruta para procesar mensajes de chat
 app.post('/api/chat', async (req, res) => {
@@ -491,16 +456,31 @@ app.post('/api/chat', async (req, res) => {
   }
   
   console.log(`[${new Date().toISOString()}] Mensaje recibido (${sessionId}): ${mensaje}`);
+  console.log(`[${new Date().toISOString()}] Estado actual de reserva:`, 
+    reservationStates[sessionId] ? 
+    JSON.stringify(reservationStates[sessionId]) : 
+    "No existe estado para esta sesión");
   
   try {
     const respuesta = await procesarIntencionReserva(mensaje, sessionId);
     
-    console.log(`[${new Date().toISOString()}] Respuesta generada: ${JSON.stringify(respuesta)}`);
+    console.log(`[${new Date().toISOString()}] Respuesta generada:`, respuesta ? JSON.stringify(respuesta) : "null");
     
     // Asegurarse de que siempre enviamos una respuesta válida
     if (!respuesta) {
+      let respuestaPredeterminada;
+      
+      // Si el usuario mencionó reserva pero no pudimos procesarla
+      if (mensaje.toLowerCase().includes('reserv') || 
+          mensaje.toLowerCase().includes('hora') || 
+          mensaje.toLowerCase().includes('cita')) {
+        respuestaPredeterminada = "Parece que quieres hacer una reserva. Para ayudarte, necesito que me digas qué día y hora te gustaría reservar. Por ejemplo: 'me gustaría reservar para el jueves a las 3 de la tarde'.";
+      } else {
+        respuestaPredeterminada = "Estoy aquí para ayudarte con información sobre Cápsulas QuantumVibe o para asistirte con tu reserva. ¿En qué puedo ayudarte hoy?";
+      }
+      
       res.json({
-        reply: "Estoy aquí para ayudarte con información sobre Cápsulas QuantumVibe o para asistirte con tu reserva. ¿En qué puedo ayudarte hoy?"
+        reply: respuestaPredeterminada
       });
     } else if (respuesta.mensajePersonalizado) {
       // Si es un mensaje personalizado del sistema de reservas, lo enviamos como reply
@@ -514,8 +494,8 @@ app.post('/api/chat', async (req, res) => {
   } catch (error) {
     console.error('Error al procesar mensaje:', error);
     res.status(500).json({ 
-      error: 'Error al procesar mensaje', 
-      reply: "Lo siento, ha ocurrido un error procesando tu mensaje. Por favor, intenta nuevamente."
+      error: 'Error al procesar mensaje: ' + error.message, 
+      reply: "Lo siento, ha ocurrido un error procesando tu mensaje. Por favor, intenta nuevamente o escribe tu solicitud de otra forma."
     });
   }
 });
