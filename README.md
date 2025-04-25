@@ -61,7 +61,7 @@ Las reservas se almacenan en el siguiente formato:
    EMAIL_HOST=smtp.tu-proveedor.com
    EMAIL_PORT=587
    EMAIL_SECURE=false
-   EMAIL_USER=tu-usuario@email.com
+   EMAIL_USER=QuantumVibeStgo@protonmail.com
    EMAIL_PASSWORD=tu-contraseña
    ```
 
@@ -74,6 +74,25 @@ Las reservas se almacenan en el siguiente formato:
    ```
    npm start
    ```
+
+## Probando el sistema de reservas
+
+El sistema está diseñado para ser probado fácilmente en cualquier entorno:
+
+1. **Local**: Al iniciar la aplicación, se crea automáticamente el directorio `data` y el archivo `reservas.json`.
+
+2. **En Render**: No requiere configuración adicional de bases de datos, ya que todos los datos se almacenan en archivos JSON en el sistema de archivos.
+
+3. **Probando reservas**:
+   - Accede al chat e indica que quieres reservar una hora.
+   - El chatbot te guiará para seleccionar fecha, hora y proporcionar tus datos.
+   - Los datos de la reserva se guardan automáticamente en el archivo JSON.
+   - Si el envío de correos está configurado, recibirás una confirmación por correo.
+
+4. **Verificando reservas**:
+   - Las reservas creadas se almacenan en `data/reservas.json`.
+   - Cada nueva reserva ocupa un horario, por lo que ya no estará disponible.
+   - El chatbot mostrará solo los horarios que están realmente disponibles.
 
 ## Sistema de correo electrónico
 
