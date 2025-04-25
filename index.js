@@ -568,7 +568,21 @@ app.post('/api/chat', async (req, res) => {
   const { mensaje, sessionId } = req.body;
   try {
     const respuesta = await procesarIntencionReserva(mensaje, sessionId);
-    res.json(respuesta);
+    
+    // Asegurarse de que siempre enviamos una respuesta válida
+    if (!respuesta) {
+      res.json({
+        reply: "Estoy aquí para ayudarte con información sobre Cápsulas QuantumVibe o para asistirte con tu reserva. ¿En qué puedo ayudarte hoy?"
+      });
+    } else if (respuesta.mensajePersonalizado) {
+      // Si es un mensaje personalizado del sistema de reservas, lo enviamos como reply
+      res.json({
+        reply: respuesta.mensajePersonalizado
+      });
+    } else {
+      // Si es otro tipo de respuesta, la enviamos tal cual
+      res.json(respuesta);
+    }
   } catch (error) {
     console.error('Error al procesar mensaje:', error);
     res.status(500).json({ error: 'Error al procesar mensaje' });
