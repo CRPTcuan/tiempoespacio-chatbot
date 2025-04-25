@@ -532,7 +532,7 @@ const procesarIntencionReserva = async (mensaje, sessionId) => {
           });
         
         return {
-          mensajePersonalizado: `¡Gracias por confirmar tu reserva! Te esperamos el ${fechaFormateada} a las ${reservationStates[sessionId].hora} en nuestras Cápsulas QuantumVibe. ¡Te esperamos con mucho entusiasmo!`;
+          mensajePersonalizado: `¡Gracias por confirmar tu reserva! Te esperamos el ${fechaFormateada} a las ${reservationStates[sessionId].hora} en nuestras Cápsulas QuantumVibe. ¡Te esperamos con mucho entusiasmo!`
         };
       } else {
         let mensajeFaltante = `Por favor, confirma tu reserva para continuar. ¿Estás seguro de que quieres reservar una sesión en Cápsulas QuantumVibe el ${fechaFormateada} a las ${reservationStates[sessionId].hora}?`;
