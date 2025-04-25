@@ -15,6 +15,12 @@ const conversations = {};
 const GROQ_API_URL = 'https://api.groq.com/openai/v1/chat/completions';
 const GROQ_API_KEY = process.env.GROQ_API_KEY;
 
+// Verificar si la API key está configurada
+if (!GROQ_API_KEY) {
+  console.error('ERROR: La variable de entorno GROQ_API_KEY no está configurada.');
+  console.error('Por favor, configura esta variable en tu archivo .env o en el panel de Render.com');
+}
+
 const systemPrompt = `Eres el asistente virtual de Cápsulas QuantumVibe. Tu rol es promocionar las cápsulas, un proyecto innovador que ofrece sesiones terapéuticas en cápsulas físicas donde las personas experimentan sonido, frecuencia, vibración y luz para transformar y transmutar su energía, logrando una ascensión a la 5D en un mundo de cambios geopolíticos, sociales y espirituales. Tu personalidad es:
 
 - Amigable, cercano y profesional
@@ -98,6 +104,11 @@ app.post('/chat', async (req, res) => {
 
     if (!sessionId || !message) {
       return res.status(400).json({ error: 'Se requiere sessionId y mensaje' });
+    }
+
+    // Verificar si la API key está configurada
+    if (!GROQ_API_KEY) {
+      return res.status(500).json({ error: 'Error de configuración del servidor: La API key de Groq no está configurada.' });
     }
 
     if (!conversations[sessionId]) {
